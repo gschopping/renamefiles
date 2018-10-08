@@ -1,4 +1,4 @@
-package My::EenBestand;
+package RenameFiles::Subject;
 
 # - convert:   verplicht	1 of meer	per zoekopdracht
 # 		- filter:    	verplicht		hierin staat de zoekopdracht welke bestanden je wilt hernoemen, bv *.jpg
@@ -29,19 +29,19 @@ package My::EenBestand;
 #                             						attribuut op ja te zetten, in dit geval wordt nog steeds de teller gebruikt om door te
 #									tellen en/of de sub-teller om door te nummeren. Er wordt namelijk voorkomen om een bestand
 #									te hernoemen naar een reeds bestaand bestand
-# - onderwerp:	verplicht	1 of meer	Dit is vooral handig als je op basis van datum en tijdstip bestanden een juist onderwerpsnaam wilt geven.
-#              	- exif-titel: 						het is mogelijk om het onderwerp uit de exif-informatie te halen. Hier geef je aan welke
+# - subject:	verplicht	1 of meer	Dit is vooral handig als je op basis van datum en tijdstip bestanden een juist onderwerpsnaam wilt geven.
+#              	- exif-title: 						het is mogelijk om het onderwerp uit de exif-informatie te halen. Hier geef je aan welke
 #									exif-waarde je daarvoor wilt gebruiken. Mocht deze waarde niet gevuld zijn, dan wordt de 
 #									waarde het attribuut titel gebruikt
-#              	- overschrijf: 			nee			mocht je altijd de waarde van het attribuut titel willen gebruiken, dan geef je dit attribuut 
+#              	- overwrite-title: 			nee			mocht je altijd de waarde van het attribuut titel willen gebruiken, dan geef je dit attribuut 
 #									de waarde ja
-#              	- tijd-start:  						per onderwerp regel kun je aangeven wat het start tijdstip is en het eindtijdstip, dit geef 
+#              	- datetime-start:  						per onderwerp regel kun je aangeven wat het start tijdstip is en het eindtijdstip, dit geef 
 #									je aan in het formaat yyyy-mm-dd hh:MM:ss, de uren, minuten en seconden kun je weglaten.
 #                             						de datum die hiervoor gebruikt wordt, heb je hiervoor bepaald en is de datum , die uiteindelijk 
 #                             						gebruik wordt om het bestand te hernoemen.
-#              	- tijd-einde:  						werkt hetzelfde als tijdstart, maar geeft het eindtijdstip aan. Je kunt alleen een tijdstart 
+#              	- datetime-end:  						werkt hetzelfde als tijdstart, maar geeft het eindtijdstip aan. Je kunt alleen een tijdstart 
 #									opgeven zonder tijdeinde en omgekeerd.
-#		- datumshift:						hiermee kun je de datum corrigeren in uren, minuten en seconden voor- of achteruit
+#		- dateshift:						hiermee kun je de datum corrigeren in uren, minuten en seconden voor- of achteruit
 #		- titel:						de naam van het onderwerp indien deze niet uit de exif-informatie komt
 # - exif:	niet verplicht	0 of meer	per onderwerp kunnen meerdere tags exif voorkomen. De exif-informatie wordt weggeschreven in het bestand
 #		- titel:	verplicht				exif-waarde, tenzij alias-titel is gevuld, dat kan van het type EXIF zijn, of XMP of IPTC
@@ -72,23 +72,17 @@ our $VERSION = '1.0';
 
 use Image::ExifTool ':Public';
 use Time::localtime;
-
-# use Exporter qw(import);
-
-# our @EXPORT_OK = qw( voorloopstring  );
+use constant { true => 1, false => 0 };
 
 
-
-# lege waarde
-# my $leeg = "[leeg]";
-my $default_extensie = "JPG";
-my $default_exifdatum = "DateTimeOriginal";
+my $default_extension = "JPG";
+my $default_exifdate = "DateTimeOriginal";
 my $default_exiftimezone = "TimeZone";
-my $default_exifdatumformaat = "%Y:%m:%d %H:%M:%S";
-my $default_datum = "Vandaag";
-my $default_voorloop = "Vandaag";
+my $default_exifdateformat = "%Y:%m:%d %H:%M:%S";
+my $default_date = "Today";
+my $default_prefix = "Today";
 # my $default_subwaarde = "a";
-my $default_posities = 3;
+my $default_positions = 3;
 
 
 # bestand

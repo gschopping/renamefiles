@@ -1,4 +1,4 @@
-package My::Bestand;
+package RenameFiles::Convert;
 
 # ------------------------ Gebruik ---------------------------------------------------------------------------------------------------#
 #
@@ -108,19 +108,21 @@ use RenameFiles::EenBestand;
 # my $default_subwaarde = "a";
 # my $default_posities = 3;
 
+# prefix	contains the date + number or date + time, eg: 20181004-001 or 20181004-123000
 
-# filter
-# nummering	(start nummering achter datum)
-# posities	(aantal posities waaruit het nummer achter de datum bestaat, eventueel opvullen met voorloopnullen)
-# subwaarde	(eventueel achter de voorloopstring om een al bestaand bestand niet te overschrijven)
-# default	(indien geen datum kan worden afgeleid dan wordt deze waarde gekozen)
-# exifdatum	(de datum wordt afgeleid uit de exif-info van het bestand)
-# exifdatumformaat	(de datum uit de exif-info voldoet aan dit formaat)
-# exiftimezone	(de timezone behorende bij de exifdatum)
-# patroon	(datum extraheren uit de naam van het bestand volgens dit formaat)
-# overschrijf	(indien ja neem dan de default in plaats van de geëxtraheerde datum uit de exif-info)
-# map		(map waar de bestanden zich bevinden)
-# debug		(debug informatie doorsturen naar fouten-bestand)
+# filter		searching for 
+# numbering		starts numbering from
+# positions		number of positions the number after the date should look like
+# subchar		character which should be added after the the prefix if a file of this name already exists
+# default		if a datetime can't be retrieved from within the file
+# exifdatetime		the datetime retrieved from the exif-info in the file(de datum wordt afgeleid uit de exif-info van het bestand)
+# exifdateformat	the datetime should apply this format
+# exiftimezone		the timezone applied to the exif-datetime
+# pattern		if the datetime can't be retrieve from the exif-info, it tries to retrieve if from the filename
+# overwrite_date	if yes, than take the default instead of the date extracted form exif-info or filename
+#
+# folder		folder where the files are located
+# debug			debuf can be set to true to enable extra information
 
 # bestand
 # extensie		( extensie afgeleid uit de bestandsnaam)

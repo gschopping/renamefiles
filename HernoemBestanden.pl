@@ -64,6 +64,7 @@
 #									maar dat mag ook een andere waarde zijn
 #              	- exif-datumformaat:		%Y:%m:%d %H:%M:%S	mocht het formaat binnen de exif of de DateTime afwijken van %Y:%m:%d %H:%M:%S, dan kun je 
 #									deze in  dit attribuut aanpassen
+#		- exif-timezone:		TimeZone		dit attribuut kan ingesteld worden als een timezone wordt gebruikt om de interne tijd te corrigeren
 #              	- patroon:     			%Y%m%d%H%M%S		mocht er geen exif-informatie zijn, dan kan de bestandsnaam gebruikt worden om daaruit 
 #									de datum en tijdstip te extraheren, bijvoorbeeld %Y%m%d%H%M%S, dit patroon komt overeen 
 #									met 20100309120501.
@@ -229,7 +230,7 @@ foreach my $aliastag (@{$data->{alias}}) {
 	my $alias_default = $aliastag->{default} || $leeg;
 	my $alias_value = $aliastag->{content} || $leeg;
 	my $alias_type = $aliastag->{type} || $leeg;
-	$alias = My::Alias->new("titel" => $alias_titel, "default" => $alias_default, "alias" => $alias_value, "type" => $alias_type);
+	$alias = RenameFiles::Alias->new("titel" => $alias_titel, "default" => $alias_default, "alias" => $alias_value, "type" => $alias_type);
 }
 
 if (! chdir $mapdir) {
@@ -240,10 +241,10 @@ if (! chdir $mapdir) {
 my $bestand;
 foreach my $convert (@{$data->{convert}}) {
 # bepaal waardes uit xml-bestand
-	$bestand = My::Bestand->new("nummering" => $convert->{nummering}, "posities" => $convert->{posities}, 
+	$bestand = RenameFiles::Bestand->new("nummering" => $convert->{nummering}, "posities" => $convert->{posities}, 
 		"exifdatum" => $convert->{"exif-datum"}, "exifdatumformaat" => $convert->{"exif-datumformaat"}, "patroon" => $convert->{patroon},
 		"exiftitel" => $convert->{"exif-titel"}, "overschrijfvoorloop" => $convert->{"overschrijf-voorloop"}, "map" => $map, "debug" => $debug,
-		"filter" => $convert->{filter});
+		"filter" => $convert->{filter}, "exiftimezone" => $convert->{"exif-timezone"});
 	
 	foreach my $onderwerp (@{$convert->{onderwerp}}) {
 		$bestand->setdebug($convert->{filter}, "Onderwerp", $onderwerp->{titel});
