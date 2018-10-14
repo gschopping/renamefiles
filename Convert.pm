@@ -92,65 +92,22 @@ our $VERSION = '1.0';
 
 use Image::ExifTool ':Public';
 use Time::localtime;
-use RenameFiles::EenBestand;
-
-# use Exporter qw( import );
-
-# our @EXPORT_OK = qw( filter geefbestanden printall );
-
-# lege waarde
-# my $leeg = "[leeg]";
-# my $default_extensie = "JPG";
-# my $default_exifdatum = "DateTimeOriginal";
-# my $default_exifdatumformaat = "%Y:%m:%d %H:%M:%S";
-# my $default_datum = "Vandaag";
-# my $default_voorloop = "Vandaag";
-# my $default_subwaarde = "a";
-# my $default_posities = 3;
-
-# prefix	contains the date + number or date + time, eg: 20181004-001 or 20181004-123000
+use RenameFiles::RenameFile;
 
 # filter		searching for 
 # numbering		starts numbering from
 # positions		number of positions the number after the date should look like
 # subchar		character which should be added after the the prefix if a file of this name already exists
-# default		if a datetime can't be retrieved from within the file
-# exifdatetime		the datetime retrieved from the exif-info in the file(de datum wordt afgeleid uit de exif-info van het bestand)
-# exifdateformat	the datetime should apply this format
-# exiftimezone		the timezone applied to the exif-datetime
+# prefix		instead of datetime as prefix another fixed prefix can be choosen
+# exif_title		exif-tag for retrieving the title
+# exif_datetime		the datetime retrieved from the exif-info in the file(de datum wordt afgeleid uit de exif-info van het bestand)
+# exif_datetimeformat	the datetime should apply this format
+# exif_timezone		the timezone applied to the exif-datetime
 # pattern		if the datetime can't be retrieve from the exif-info, it tries to retrieve if from the filename
-# overwrite_date	if yes, than take the default instead of the date extracted form exif-info or filename
+# overwrite_prefix	if yes, than take the prefix instead
 #
-# folder		folder where the files are located
-# debug			debuf can be set to true to enable extra information
 
-# bestand
-# extensie		( extensie afgeleid uit de bestandsnaam)
-# datum			( datum/default uit de exif-info)
-# exifdatumformaat	( uit bovenstaand }
-# exifdatum		( uit bovenstaand )
-# voorloop		( datum+tijd, datum + nummer of defaultwaarde + nummer }
-# subnummer		( gelijk aan subwaarde )
-# teller
-# hernoem
-# schrijfexif
-
-my @Bestanden;
 my @Errorlines;
-
-# initieel meegeven:
-# 	nummering
-#	posities
-#	subwaarde
-#	default
-#	exifdatum
-#	exifdatumformaat
-#	exiftimezone
-#	exiftitel
-#	patroon
-#	overschrijf
-#	map
-#	debug
 
 sub new {
 	my $class = shift;
@@ -162,8 +119,6 @@ sub new {
 
 sub _init {
 	my $self = shift;
-	$self->filter($self->{filter});
-	$self->setdebug($self->{filter}, "Bestand:new", "");
 }
 
 sub filter {
