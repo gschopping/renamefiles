@@ -72,8 +72,9 @@ our $VERSION = '1.0';
 
 use Image::ExifTool ':Public';
 use Time::localtime;
+use DateTime::Format::Strptime;
 use constant { true => 1, false => 0 };
-use constant { OK => 1, NoChanges => 2, WriteError = 0 };
+use constant { OK => 1, NoChanges => 2, WriteError => 0 };
 
 # default values
 my $default_extension = "JPG";
@@ -82,13 +83,15 @@ my $default_exif_timezone = "TimeZone";
 my $default_exif_datetimeformat = "%Y:%m:%d %H:%M:%S";
 my $default_prefix = "Vandaag";
 my $default_subchar = "a";
-my $default_positions = 3;
+my $default_positionsformat = "%03d";
+my $default_numberingstring = "000";
+my $default_pattern = "%Y%m%d_%H%M%S";
 
 
 
 # initieel meegeven: 
 #	filename
-# numbering		starts numbering from
+# numbering		first number or T for datetime
 # positions		number of positions the number after the date should look like
 # subchar		character which should be added after the the prefix if a file of this name already exists
 # prefix		instead of datetime as prefix another fixed prefix can be choosen
@@ -111,37 +114,38 @@ sub _init {
 	my $self = shift;
 	$self->{renamed} = false;
 	$self->{exif_written} = NoChanges;
-	$self->{writeable} = false;
-	$self->{exiftool} = new Image::ExifTool;
+	$self->{writable} = false;
+	$self->initdatum();
 }
 
-# public
+# extract all kind of exif-data immediately after creating class
 sub initdatum {
 	my $self = shift;
 	if (defined $self->{filename}) {
-		$self->{writeable} = $self->{exiftool}->CanWrite($self->extensie());
-		my $info = $exiftool->ImageInfo($self->filename());
+		my $exiftool = new Image::ExifTool;
+		$self->{writable} = Image::ExifTool::CanWrite($self->extension());
+		my $info = $exiftool->ImageInfo($self->filename_with_folder());
 		my $parser = DateTime::Format::Strptime->new(pattern => $self->exif_datetimeformat());
-		my $datum = $info->{$self->exifdatum()};
-		if ($datum) {
-			$self->setdatum($parser->parse_datetime($datum));
+		my $datetime = $info->{$self->exif_datetime()};
+		if ($datetime) {
+			$self->{datetime} = $parser->parse_datetime($datetime);
 		} else {
-			if (defined $self->{datumpatroon}) {
-				my $fileparser = DateTime::Format::Strptime->new(pattern => $self->{datumpatroon});
+			if (defined $self->{pattern}) {
+				my $fileparser = DateTime::Format::Strptime->new(pattern => $self->pattern());
 				my $datestring;
 			# indien patroon in naam bestand, haal dan de datum/tijd van het bestand op
-				if ($self->{datumpatroon} eq "CreateDateTime") {
-					$datestring = ctime(stat($self->bestand())->ctime);
-					$self->setdatum($fileparser->parse_datetime($datestring));
-				} elsif ($self->{datumpatroon} eq "ModifyDateTime") {
-					$datestring = ctime(stat($self->bestand())->mtime);
-					$self->setdatum($fileparser->parse_datetime($datestring));
-				} elsif ($self->{datumpatroon} eq "AccessDateTime") {
-					$datestring = ctime(stat($self->bestand())->atime);
-					$self->setdatum($fileparser->parse_datetime($datestring));
+				if ($self->pattern() eq "CreateDateTime") {
+					$datestring = ctime(stat($self->filename())->ctime);
+					$self->{datetime} = $fileparser->parse_datetime($datestring);
+				} elsif ($self->pattern() eq "ModifyDateTime") {
+					$datestring = ctime(stat($self->filename())->mtime);
+					$self->{datetime} = $fileparser->parse_datetime($datestring);
+				} elsif ($self->pattern() eq "AccessDateTime") {
+					$datestring = ctime(stat($self->filename())->atime);
+					$self->{datetime} = $fileparser->parse_datetime($datestring);
 				} else {
 			# bepaal datumstring aan de hand van de bestandsnaam
-					$self->setdatum($fileparser->parse_datetime($self->bestandsnaam()));
+					$self->{datetime} = $fileparser->parse_datetime($self->filename_without_extension());
 				}
 			} else {
 				# my $errormessage = "Kan de exif-tag " . $self->exif_datum() . " niet vinden, mogelijke tags:\n";
@@ -169,8 +173,15 @@ sub initdatum {
 				# $self->seterror($data, "exif", $errormessage);
 			}
 		 }
-		if (defined $self->{exiftitel}) {
-			$self->{titel_exif} = $info->{$self->{exiftitel}};
+		if (defined $self->{exif_title}) {
+			$self->{title} = $info->{$self->{exif_title}};
+		}
+		if (defined $self->{exif_timezone}) {
+			my $timezonestring = $info->{$self->{exif_timezone}};
+			$parser = DateTime::Format::Strptime->new(pattern => "%H:%M");
+			if (defined $timezonestring) {
+				$self->{timezone} = $parser->parse_datetime($timezonestring);
+			}
 		}
 	}
 
@@ -228,13 +239,13 @@ sub folder {
 	return $folder;
 }
 
-sub file_with_folder {
+sub filename_with_folder {
 	my $self = shift;
-#	return $self->map() . $self->bestand();
-	return $self->filename();
+	return $self->folder() . $self->filename();
+#	return $self->filename();
 }
 	
-sub exif_titlel {
+sub exif_title {
 	my $self = shift;
 	return $self->{exif_title} || "";
 }	
@@ -264,210 +275,108 @@ sub datetime {
 	return $datetime;
 }
 
+sub timezone {
+	my $self = shift;
+	my $timezone = undef;
+	if (defined $self->{timezone}) {
+		$timezone = $self->{timezone};
+	}
+	return $timezone;
+}
+
+sub pattern {
+	my $self = shift;
+	return $self->{pattern} || $default_pattern;
+}
+
 sub prefix {
 	my $self = shift;
 	return $self->{prefix} || $default_prefix;
 }
 
-# public
-sub setvoorloop {
+sub overwrite_prefix {
 	my $self = shift;
-	my $voorloop = shift;
-	my $overschrijf = shift;
-	if (($voorloop) && (defined $overschrijf) && ($overschrijf eq "ja")) {
-		$self->{overschrijfvoorloopuitconvert} = 1;
+	return $self->{overwrite_prefix} || false;
+}
+
+sub positionsformat {
+	my $self = shift;
+	my $positions = shift;
+	my $positionsformat = $default_positionsformat;
+	if ($positions =~ /^\d+$/) {
+		$positionsformat = "%0" . $positions . "d";
 	}
-	$self->{voorloop} = $voorloop || "";
-}
-
-
-sub isvoorloop {
-	my $self = shift;
-	my $isvoorloop = 0;
-	if (defined $self->{voorloop}) {
-		$isvoorloop = 1;
-	}
-	return $isvoorloop;
-}
-
-sub setteller {
-	my $self = shift;
-	my $teller = shift;
-	$self->{teller} = $teller || 1;
-}
-
-sub isteller {
-	my $self = shift;
-	my $isteller = 0;
-	if (defined $self->{teller}) {
-		$isteller = 1;
-	}
-	return $isteller;
-}
-
-sub tellerformaat {
-	my $self = shift;
-	my $posities = $self->{tellerposities} || $default_posities;
-	return "%0" . $posities . "d";
+	return $psoitionsformat;
 }
 	
-sub tellerstring {
+	
+sub title {
 	my $self = shift;
-	my $str = "";
-	if ($self->isteller()) {
-		$str = sprintf($self->tellerformaat(), $self->{teller});
-	}
-	return $str;
+	return $self->{title} || "";
 }
 
-sub settellerposities {
+sub writable {
 	my $self = shift;
-	my $posities = shift;
-	$self->{tellerposities} = $posities || $default_posities;
+	return $self->{writable} || false;
 }
 
-sub hernoem {
+sub prefix_string {
 	my $self = shift;
-	return $self->{hernoem} || 0;
-}
-
-sub sethernoem {
-	my $self = shift;
-	$self->{hernoem} = 1;
-}
-
-sub schrijfexif {
-	my $self = shift;
-	return $self->{schrijfexif} || 0;
-}
-
-# public
-sub setschrijfexif {
-	my $self = shift;
-	my $schrijfexif = shift;
-	$self->{schrijfexif} = $schrijfexif;
-}
-
-sub kanschrijven {
-	my $self = shift;
-	return ($self->{kanschrijven} == 1);
-}
-
-# public
-sub setdatumshift_onderwerp {
-	my $self = shift;
-	my $datumshift = shift;
-	if (defined $datumshift) {
-		$self->{datumshift_onderwerp} = $datumshift;
-		$self->{datumshiftuitonderwerp} = 1;
+	my $numbering = shift;
+	my $subchar = shift;
+	my $prefix = "";
+	if ($numbering =~ /^\d+$/) {
+		$numberingstring = sprintf($self->positionsformat, $numbering);
+	} elsif (defined $self->datetime()) {
+		$numberingstring = sprintf("%02s%02s%02s", $self->datetime()->hour(), $self->datetime()->minute(), $self->datetime()->second());
 	} else {
-		$self->{datumshiftuitonderwerp} = 0;
+		$numberingstring = $default_numberingstring;
 	}
-}
-
-sub setdatumshift_exif {
-	my $self = shift;
-	my $datumshift = shift;
-	$self->{datumshift_exif} = $datumshift;
-}
-
-# public
-sub settitel_onderwerp {
-	my $self = shift;
-	my $titel = shift;
-	my $overschrijf = shift;
-	$self->{titel_onderwerp} = $titel;
-	if (defined $titel) {
-		$self->{titeluitonderwerp} = 1;
+	if ($self->overwrite_prefix()) {
+		$prefix = $self->prefix();
+	} elsif (defined $self->datetime()) {
+		$prefix = sprintf("%04s%02s%02s", $self->datetime()->year(), $self->datetime()->month(), $self->datetime()->day());
+	} else {
+		$prefix = $self->prefix();
 	}
-	if ((defined $titel) && (defined $overschrijf) && ($overschrijf eq "ja")) {
-		$self->{overschrijftiteluitonderwerp} = 1;
+	if ($numberingstring ne "") {
+		$prefix = $prefix . "-" . $numberingstring;
 	}
-}
-
-sub titel_onderwerp {
-	my $self = shift;
-	my $titel = "";
-	if (defined $self->{titel_onderwerp}) {
-		$titel = $self->{titel_onderwerp};
+	if (defined $subchar) {
+		$prefix = $prefix . $subchar;
 	}
-	return $titel;
+	return $prefix;
 }
 
-sub settitel_exif {
-	my $self = shift;
-	my $titel = shift;
-	$self->{titel_exif} = $titel;
-}
 
-sub titel_exif {
-	my $self = shift;
-	my $titel = "";
-	if (defined $self->{titel_exif}) {
-		$titel = $self->{titel_exif};
+sub printboolean {
+	shift;
+	my $boolean = shift;
+	my $value = "no";
+	if ($boolean eq true) {
+		$value = "yes";
 	}
-	return $titel;
+	return $value;
 }
-
-# public
-sub voorloopstring {
-	my $self = shift;
-	my $datestring = $self->voorloop() . $self->tellerstring();
-	if ((! $self->isvoorloop()) && $self->isdatum() && (! $self->{overschrijfvoorloopuitconvert})) {
-		my $datum = $self->datumshift();
-		if ($self->isteller()) {
-			$datestring = sprintf("%04s%02s%02s-", $datum->year(), $datum->month(), $datum->day()) . $self->tellerstring();
-		} else {
-			$datestring = sprintf("%04s%02s%02s-%02s%02s%02s", $datum->year(), $datum->month(), $datum->day(), $datum->hour(), $datum->minute(), $datum->second())
-		}
-	}
-	return $datestring;
-}
-
-		
 
 sub print {
 	my $self = shift;
-	my $tekst = "bestand:\t\t" . $self->bestand() . "\n";
-	$tekst = $tekst . "map:\t\t\t" . $self->map() . "\n";
-	$tekst = $tekst . "bestandsnaam:\t\t" . $self->bestandsnaam() . "\n";
-	$tekst = $tekst . "extensie:\t\t" . $self->extensie() . "\n";
-	$tekst = $tekst . "exifdatumformaat:\t" . $self->exifdatumformaat() . "\n";
-	$tekst = $tekst . "exifdatum:\t\t" . $self->exifdatum() . "\n";
-	$tekst = $tekst . "exiftitel:\t\t" . $self->titel_exif() . "\n";
-	$tekst = $tekst . "datumpatroon:\t\t";
-	if (defined $self->{datumpatroon}) {
-		$tekst = $tekst . $self->{datumpatroon}
+	my $tekst = sprintf("%-20s %-50s\n", "filename", $self->filename());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "folder", $self->folder());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "extension", $self->extension());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "exif-datetimeformat", $self->exif_datetimeformat());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "exif-datetime", $self->exif_datetime());
+	if (defined $self->datetime()) {
+		$tekst = $tekst . sprintf("%-20s %04s-%02s-%02s %02s:%02s:%02s\n", "datetime", $self->datetime()->year(), $self->datetime()->month(),
+			$self->datetime()->day(), $self->datetime()->hour(), $self->datetime()->minute(), $self->datetime()->second());
 	}
-	$tekst = $tekst . "\n";
-	$tekst = $tekst . "overschrijf-voorloop:\t";
-	if (defined $self->{overschrijfvoorloop}) {
-		$tekst = $tekst . $self->{overschrijfvoorloop}
+	if (defined $self->timezone()) {
+		$tekst = $tekst . sprintf("%-20s %02s:%02s:%02s\n", "timezone", $self->timezone()->hour(), $self->timezone()->minute(), $self->timezone()->second());
 	}
-	$tekst = $tekst . "\n";
-	$tekst = $tekst . "voorloopstring:\t\t" . $self->voorloopstring() . "\n";
-	$tekst = $tekst . "titel:\t\t\t";
-	$tekst = $tekst . $self->titel_onderwerp();
-	$tekst = $tekst . "\n";
-	$tekst = $tekst . "datum:\t\t\t";
-	if ($self->isdatum()) {
-		$tekst = $tekst . sprintf("%04s-%02s-%02s %02s:%02s:%02s", $self->datum()->year(), $self->datum()->month(), $self->datum()->day(), 
-			$self->datum()->hour(), $self->datum()->minute(), $self->datum()->second());
-	}
-	$tekst = $tekst . "\n";
-	$tekst = $tekst . "Kan schrijven:\t\t";
-	if ($self->{kanschrijven}) {
-		$tekst = $tekst . "ja";
-	} else {
-		$tekst = $tekst . "nee";
-	}
-	$tekst = $tekst . "\n";
-	$tekst = $tekst . "Schrijf Exif:\t\t" . $self->{schrijfexif} . "\n";
-	my $nieuwbestand = $self->voorloopstring();
-	if (($nieuwbestand ne "") && ($self->titel() ne "")) {
-		$nieuwbestand = $nieuwbestand . " ";
-	}
-	$tekst = $tekst . "Nieuw bestand:\t\t" . $nieuwbestand . $self->titel() . "." . $self->extensie() . "\n";
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "writable", $self->printboolean($self->writable()));
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "exif-title", $self->exif_title());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "title", $self->title());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "pattern", $self->pattern());
 	return $tekst;
 }
 
