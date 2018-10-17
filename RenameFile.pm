@@ -80,6 +80,7 @@ use constant { OK => 1, NoChanges => 2, WriteError => 0 };
 my $default_extension = "JPG";
 my $default_exif_datetime = "DateTimeOriginal";
 my $default_exif_timezone = "TimeZone";
+my $default_exif_title = "Title";
 my $default_exif_datetimeformat = "%Y:%m:%d %H:%M:%S";
 my $default_prefix = "Vandaag";
 my $default_subchar = "a";
@@ -87,13 +88,15 @@ my $default_positionsformat = "%03d";
 my $default_numberingstring = "000";
 my $default_pattern = "%Y%m%d_%H%M%S";
 
+my $empty = "[empty]";
+
+
+my @Errorlines;
 
 
 # initieel meegeven: 
 #	filename
-# numbering		first number or T for datetime
 # positions		number of positions the number after the date should look like
-# subchar		character which should be added after the the prefix if a file of this name already exists
 # prefix		instead of datetime as prefix another fixed prefix can be choosen
 # exif_title		exif-tag for retrieving the title
 # exif_datetime		the datetime retrieved from the exif-info in the file(de datum wordt afgeleid uit de exif-info van het bestand)
@@ -115,8 +118,25 @@ sub _init {
 	$self->{renamed} = false;
 	$self->{exif_written} = NoChanges;
 	$self->{writable} = false;
+	$self->{norename} = true;
 	$self->initdatum();
 }
+
+sub seterror {
+	my $self = shift;
+	my $type = shift || "";
+	my $message = shift || "";
+	push (@Errorlines, {"file" => $self->filename(), "errortype" => $type, "errormessage" => $message});
+}
+
+sub setdebug {
+	my $self = shift;
+	my $method = shift || "";
+	my $message = shift || "";
+	push @Errorlines, {"file" => $self->filename(), "errortype" => "debug", "errormessage" => "$method\t$message"};
+}
+
+	
 
 # extract all kind of exif-data immediately after creating class
 sub initdatum {
@@ -247,7 +267,7 @@ sub filename_with_folder {
 	
 sub exif_title {
 	my $self = shift;
-	return $self->{exif_title} || "";
+	return $self->{exif_title} || $default_exif_title;
 }	
 
 sub exif_datetime {
@@ -301,12 +321,13 @@ sub overwrite_prefix {
 
 sub positionsformat {
 	my $self = shift;
-	my $positions = shift;
 	my $positionsformat = $default_positionsformat;
-	if ($positions =~ /^\d+$/) {
-		$positionsformat = "%0" . $positions . "d";
+	if (defined $self->{positions}) {
+		if ($self->{positions} =~ /^\d+$/) {
+			$positionsformat = "%0" . $self->{positions} . "d";
+		}
 	}
-	return $psoitionsformat;
+	return $positionsformat;
 }
 	
 	
@@ -323,8 +344,8 @@ sub writable {
 sub prefix_string {
 	my $self = shift;
 	my $numbering = shift;
-	my $subchar = shift;
 	my $prefix = "";
+	my $numberingstring;
 	if ($numbering =~ /^\d+$/) {
 		$numberingstring = sprintf($self->positionsformat, $numbering);
 	} elsif (defined $self->datetime()) {
@@ -342,10 +363,123 @@ sub prefix_string {
 	if ($numberingstring ne "") {
 		$prefix = $prefix . "-" . $numberingstring;
 	}
-	if (defined $subchar) {
-		$prefix = $prefix . $subchar;
-	}
 	return $prefix;
+}
+
+sub setrename {
+	my $self = shift;
+	my $value = shift;
+	$self->{norename} = true;
+	if (defined $value) {
+		if ($value eq true) {
+			$self->{norename} = false;
+		}
+	}
+}
+
+sub rename {
+	my $self = shift;
+	my $title = shift;
+	my $numbering = shift;
+	my $subchar = shift;
+	my $newfile;
+	my $space = "";
+	my $prefix_string = $self->prefix_string($numbering);
+	if (($prefix_string ne "") && ($title ne "")){
+		$space = " ";
+	}
+	
+	unless (-e $self->folder(). $prefix_string . $space . $title . "." . $self->extension()) {
+		$newfile = $prefix_string . $space . $title . "." . $self->extension();
+		print $self->filename() . " =>\t$newfile\n";
+		$self->seterror($self->filename(), "rename", $newfile);
+		$newfile = $self->folder() . $newfile;
+		if ($self->{norename} eq false) {
+			rename $self->filename_with_folder(), $newfile;
+		}
+	} else {
+		while (-e $self->folder() . $prefix_string . $subchar . $space . $title . "." . $self->extension()) {
+			$subchar = chr(1 + ord $subchar);
+		}
+		$newfile = $prefix_string . $subchar . $space . $title . "." . $self->extension();
+		print $self->filename() . " =>\t$newfile\n";
+		$self->seterror($self->filename(), "rename", $newfile);
+		$newfile = $self->folder() . $newfile;
+		if ($self->{norename} eq false) {
+			my $success = rename $self->filename_with_folder(), $newfile;
+			if ($success eq true) {
+				$self->{filename} = $newfile;
+			}
+		}
+	}
+}
+
+sub write_exiftags {
+	my $self = shift;
+	my $aliases = shift;
+	if (defined $aliases) {
+		my $exiftool = new Image::ExifTool;
+
+	# wijzig de exif-attributen in het bestand
+		my $write_exif = false;
+		$exiftool->SaveNewValues();
+		my $success = false;
+		foreach my $alias @{$aliases} {
+			if ($alias->value_or_default() ne $empty) {
+				if ($alias->type() eq "datetime") {
+					$success = $exiftool->SetNewValue($alias->titel() => $alias->absvalue_or_default(), Shift => $alias->dateshift());
+					$self->setdebug("Exiftool:SetNewValue", $alias->title() . ", " . $alias->value_or_default() . ", " . $alias->dateshift());
+				} else {
+					$success = $exiftool->SetNewValue($alias->title() => $alias->value_or_default());
+					$self->setdebug("Exiftool:SetNewValue", $alias->title() . ", " . $alias->value_or_default());
+				}
+				if ($success eq false) {
+					$self->seterror("exif", sprintf("Can not write tag %s with value %s", $alias->title(), $alias->value_or_default());
+				} else {
+					$write_exif = true;
+					$alias->written();
+				}
+	# vul de exif-waardes in als de exif-tag overeenkomt met de definitie in convert
+				if ($alias->isexif_title($self->exif_title())) {
+					$self->{title} = $alias->value_or_default());
+				}
+	# ================== hier verder kijken
+				if ($alias->isexif_date($exif_datetime)) {
+					$self->{datetimesetdatumshift_exif($exifvalue->waarde());
+				}
+
+			}
+		}
+		if (($write_exif eq true) && ($self->{norename} eq false)) {
+			$success = $exiftool->WriteInfo($self->filename());
+			$self->{exif_written} = $success;
+			if ($success != 1) {
+	# nogmaal schrijven maar dan tag voor tag, een stuk langzamer,maar dat moet dan maar
+				$exiftool->RestoreNewValues();
+				foreach my $exifvalue ($alias->aliases()) {
+					if ($exifvalue->waarde() ne $leeg) {
+						if ($exifvalue->type() eq "datum") {
+							$success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->abswaarde(), Shift => $exifvalue->datumshift());
+							$bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde() . ", " . $exifvalue->datumshift());
+						} else {
+							$success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->waarde());
+							$bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde());
+						}
+						if (! $success) {
+							$bestand->seterror($file->bestand(), "exif", "Kan " . $exifvalue->titel() . ", " . $exifvalue->waarde() . " niet schrijven (2)");
+						} else {
+							$success = $exiftool->WriteInfo($file->bestand());
+							$file->setschrijfexif($success);
+							if ($success != 1) {
+								$bestand->seterror($file->bestand(), "exif", "Kan exif-waarde " . $exifvalue->titel() . " niet schrijven (3)");
+								$exifvalue->nietgeschreven();
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 
@@ -358,6 +492,19 @@ sub printboolean {
 	}
 	return $value;
 }
+
+sub printwritten {
+	shift
+	my $written = shift;
+	my $value = "NoChanges";
+	if ($written eq OK) {
+		$value = "OK"
+	} elsif ($written eq WriteError) {
+		$value = "WriteError";
+	}
+	return $value;
+}
+	
 
 sub print {
 	my $self = shift;
@@ -373,10 +520,14 @@ sub print {
 	if (defined $self->timezone()) {
 		$tekst = $tekst . sprintf("%-20s %02s:%02s:%02s\n", "timezone", $self->timezone()->hour(), $self->timezone()->minute(), $self->timezone()->second());
 	}
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "positions", $self->positionsformat());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "prefix", $self->prefix());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "overwrite-prefix", $self->printboolean($self->overwrite_prefix()));
 	$tekst = $tekst . sprintf("%-20s %-50s\n", "writable", $self->printboolean($self->writable()));
 	$tekst = $tekst . sprintf("%-20s %-50s\n", "exif-title", $self->exif_title());
 	$tekst = $tekst . sprintf("%-20s %-50s\n", "title", $self->title());
 	$tekst = $tekst . sprintf("%-20s %-50s\n", "pattern", $self->pattern());
+	$tekst = $tekst . sprintf("%-20s %-50s\n", "exif-written", $self->printwritten($self->{exif_written}));
 	return $tekst;
 }
 

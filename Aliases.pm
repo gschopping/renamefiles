@@ -112,23 +112,23 @@ sub isexif_title {
 	my $exif_title = shift;
 	my $found = false;
 	if (defined $exif_title) {
-		if ($exif_title eq $self->title_title()) {
+		if ($exif_title eq $self->title_tagname()) {
 			$found = true;
 		}
 	}
-	return ($found == true);
+	return ($found eq true);
 }
 
-sub isexif_date {
+sub isexif_datetime {
 	my $self = shift;
-	my $exif_date = shift;
+	my $exif_datetime = shift;
 	my $found = false;
-	if (defined $exif_date) {
-		if ($exif_date eq $self->title_title()) {
+	if (defined $exif_datetime) {
+		if ($exif_datetime eq $self->title_tagname()) {
 			$found = true;
 		}
 	}
-	return $found == true;
+	return ($found eq true);
 }
 
 sub clear {
@@ -216,6 +216,29 @@ sub dateshift {
 		}
 	}
 	return $shift;
+}
+
+sub datetime_value {
+	my $self = shift;
+	my $timeshift = undef;
+# check if timeshift is set
+	if (($self->type() eq "datetime") && ($self->value_or_default() ne $empty)) {
+# extract minus sign if applicable
+		my $tempvalue = $self->absvalue_or_default();
+# check if datetime_end has proper format
+		if ($tempvalue =~ m/\d{2}:\d{2}:\d{2}/) {
+			my $format = DateTime::Format::Strptime->new(pattern => "%H:%M:%S");
+			$timeshift = $format->parse_datetime($tempvalue);
+			if (!($timeshift)) {
+				$self->seterror("warning", sprintf("timeshift %s is not correct", $self->value_or_default()));
+#				$self->{datetime_error} = true;
+			}
+		} else {
+			$self->seterror("warning", sprintf("timeshift %s has not a proper format", $self->value_or_default()));
+#			$self->{datetime_error} = true;
+		}
+	}
+	return $timeshift;
 }
 
 sub printall {
