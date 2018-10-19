@@ -92,7 +92,10 @@ our $VERSION = '1.0';
 
 use Image::ExifTool ':Public';
 use Time::localtime;
-use RenameFiles::RenameFile;
+use constant { true => 1, false => 0 };
+use constant { ERROR => 2, WARNING => 1, DEBUG => 0};
+
+my $default_filter = "*.JPG";
 
 # filter		searching for 
 # numbering		starts numbering from
@@ -119,167 +122,101 @@ sub new {
 
 sub _init {
 	my $self = shift;
+	@Errorlines = ();
+}
+
+sub getfiles {
+	my $self = shift;
+	my @files = ();
+	if (defined $self->filter()) {
+		$self->setdebug($self->filter(), "getfiles:filter", $self->folder() . $self->filter());
+#		my @files = glob("\"" . $self->folder() . $self->filter() . "\"");
+		@files = glob($self->folder() . $self->filter());
+#		my @files = glob("\"" . $filter. "\"");
+#		my @files = glob($self->filter());
+		$self->setdebug($self->filter(), "getfiles:filter", "number of files: " . scalar(@files));
+		foreach my $file (sort @files) {
+			$self->setdebug($file, "getfiles", "filter");
+		}
+
+	}
+	return (sort @files);
 }
 
 sub filter {
 	my $self = shift;
-	my $filter = shift;
-	my $teller = $self->nummering();
-	my $newfile;
-	if (defined $filter) {
-		$self->setdebug($filter, "Bestand:filter", $self->{map} . $filter);
-#		my @files = glob("\"" . $self->{map} . $filter. "\"");
-#		my @files = glob("\"" . $filter. "\"");
-		my @files = glob($filter);
-		$self->setdebug($filter, "Bestand:filter", "aantal bestanden: " . scalar(@files));
-		foreach my $file (sort @files) {
-			# initieel meegeven: bestand, exifdatum, exifdatumformaat, datumpatroon, exiftitel
-			if ($self->isnummeringdatum) {
-				$newfile = RenameFiles::EenBestand->new("bestand" => $file, "exifdatum" => $self->{exifdatum}, "exifdatumformaat" => $self->{exifdatumformaat},
-					"datumpatroon" => $self->{patroon}, "exiftitel" => $self->{exiftitel}, "voorloop" => $self->{voorloop}, 
-					"overschrijfvoorloop" => $self->{overschrijfvoorloop}, "exiftimezone" => $self->{exiftimezone});
-			} else {
-				$newfile = RenameFiles::EenBestand->new("bestand" => $file, "exifdatum" => $self->{exifdatum}, "exifdatumformaat" => $self->{exifdatumformaat},
-					"datumpatroon" => $self->{patroon}, "exiftitel" => $self->{exiftitel}, "teller" => $teller, "posities" => $self->{posities},
-					"voorloop" => $self->{voorloop}, "overschrijfvoorloop" => $self->{overschrijfvoorloop}, "exiftimezone" => $self->{exiftimezone});
-			}
-			$self->setdebug($newfile->bestand(), "Bestand:filter", "datum: " . $newfile->datumstring() . ", exif-datum: " . $self->{exifdatum});
-			push (@Bestanden, $newfile);
-			$teller++;
-		}
-	}
+	return $self->{filter} || $default_filter;
 }
 
-
-
-sub nummering {
+sub folder {
 	my $self = shift;
-	my $mynummering = $self->{nummering} || 1;
-	if ($mynummering =~ /^\d+$/) {
-		$mynummering = $self->{nummering}
-	} else {
-		$mynummering = 1;
+	my $folder = "";
+	if (defined $self->{folder}) {
+		$folder = $self->{folder};
+		if (substr($folder, -1) ne "/") {
+			$folder = $folder . "/";
+		}
 	}
-	return $mynummering;
+	return $folder;
 }
 
-sub isnummeringdatum {
+sub numbering {
 	my $self = shift;
-	my $nummering = $self->{nummering} || 1;
-	return ($nummering eq "T");
+	return $self->{numbering};
 }
-
-sub debug {
+sub positions {
 	my $self = shift;
-	my $debug = 0;
-	if (defined $self->{debug}) {
-		if ($self->{debug} == 1) {
-			$debug = 1;
-		}
-	}
-	return $debug;
+	return $self->{positions};
 }
 
-
-sub printexiftags {
+sub subchar {
 	my $self = shift;
-	my $bestand = shift;
-	my $group = '';
-	my $tag;
-	my $errormessage = "";
-	my $exiftool = new Image::ExifTool;
-	my $info = $exiftool->ImageInfo($bestand, 'FileAccessDate');
-	foreach $tag ($exiftool->GetFoundTags('Group0')) {
-		if ($tag =~ /Date/) {
-			if ($group ne $exiftool->GetGroup($tag)) {
-				$group = $exiftool->GetGroup($tag);
-				$errormessage .= "---- $group ----\n";
-			}
-			my $val = $info->{$tag};
-			if (ref $val eq 'SCALAR') {
-				if ($$val =~ /^Binary data/) {
-					$val = "($$val)";
-				} else {
-					my $len = length($$val);
-					$val = "(Binary data $len bytes)";
-				}
-			}
-			$errormessage .= "$tag = $val\n";
-		}
-	}
-	$self->setdebug($bestand, "Bestand:printexiftags", $errormessage);
+	return $self->{subchar};
 }
-	
 
-sub printall {
-# bestand
-# extensie		( extensie afgeleid uit de bestandsnaam)
-# datum			( datum/default uit de exif-info)
-# voorloopstring	( datum+tijd, datum + nummer of defaultwaarde + nummer }
-# subnummer		( gelijk aan sub )
-
+sub prefix {
 	my $self = shift;
-	my $tekst = "";
-	foreach my $myfile (@Bestanden) {
-		$tekst = $tekst . $myfile->print();
-		$tekst = $tekst .  "-------------------------------------------\n";
-	}
-	return $tekst;
+	return $self->{prefix};
 }
 
-# public
-# geef de te hernoemen bestanden, zet hernoem op 1, vul de omschrijving, pas eventueel de datum en bijhorende voorloopstring aan
-sub geefbestanden {
+sub exif_title {
 	my $self = shift;
-	my $tijdstart = shift;
-	my $tijdeinde = shift;
-	my $titel = shift;
-	my $overschrijf = shift;
-	my $datumshift = shift;
-	my $tijdformat = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d %H:%M:%S");
-	my $datumformat = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d");
-	my $tijd_start;
-	my $tijd_einde;
-	if (defined $tijdstart) {
-		$tijd_start = $tijdformat->parse_datetime($tijdstart);
-		if (!($tijd_start)) {
-			$tijd_start = $datumformat->parse_datetime($tijdstart);
-		}
-	}
-	if (defined $tijdeinde) {
-		$tijd_einde = $tijdformat->parse_datetime($tijdeinde);
-		if (!($tijd_einde)) {
-			$tijd_einde = $datumformat->parse_datetime($tijdeinde);
-		}
-	}
-	my @hernoembestanden;
-	foreach my $myfile (@Bestanden) {
-	# bepaal of omschrjving uit titel komt of uit de exif-info per bestand
-		$myfile->settitel_onderwerp($titel, $overschrijf);
-		$myfile->setdatumshift_onderwerp($datumshift);
-		if (! defined $overschrijf) {
-			$overschrijf = "";
-		}
-		$self->setdebug($myfile->bestand(), "Bestand:geefbestanden", "voorloopstring: " . $myfile->voorloopstring() . ", titel: " . $myfile->titel() . 
-			", exif-titel: " . $myfile->exiftitel() . ", overschrijf: $overschrijf, datum: " . $myfile->datumstring() . ", tijd-start: $tijdstart, tijd-einde: $tijdeinde");
-
-	# bepaal of tijdverschuiving van toepassing is per bestand
-	# bepaal of datum van bestand voldoet aan criteria
-		if ($myfile->isgefilterd($tijd_start, $tijd_einde)) {
-			push @hernoembestanden, $myfile;
-		}
-	}
-	return @hernoembestanden;
+	return $self->{exif_title};
 }
-	
-sub clearall {
-	@Bestanden = ();
+
+sub exif_datetime {
+	my $self = shift;
+	return $self->{exif_datetime};
+}
+
+sub exif_datetimeformat {
+	my $self = shift;
+	return $self->{exif_datetimeformat};
+}
+sub exif_timezone {
+ 	my $self = shift;
+ 	return $self->{exif_timezone};
+}
+ 
+sub exif_timezoneformat {
+	my $self = shift;
+	return $self->{exif_timezoneformat};
+}
+ 
+sub pattern {
+	my $self = shift;
+	return $self->{pattern};
+} 
+
+sub overwrite_prefix {
+ 	my $self = shift;
+ 	return $self->{overwrite_prefix};
 }
 
 sub seterror {
 	my $self = shift;
 	my $file = shift || "";
-	my $type = shift || "";
+	my $type = shift || DEBUG;
 	my $message = shift || "";
 	push @Errorlines, {"file" => $file, "errortype" => $type, "errormessage" => $message};
 }
@@ -289,35 +226,47 @@ sub setdebug {
 	my $file = shift || "";
 	my $method = shift || "";
 	my $message = shift || "";
-	push @Errorlines, {"file" => $file, "errortype" => "debug", "errormessage" => "$method\t$message"};
+	push @Errorlines, {"file" => $file, "errortype" => DEBUG, "errormessage" => "$method\t$message"};
 }
 
-sub printerrorfile {
+sub errors {
+	shift;
+	return @Errorlines;
+}
+
+sub printerrors {
 	my $self = shift;
-	my $data = shift;
-	my $vandaagstring = shift;
-	if ((defined $data) && (defined $vandaagstring)) {
-		foreach my $errorline (@Errorlines) {
-			if ($errorline->{errortype} eq "debug") {
-				if ($self->debug() == 1) {
-					print $data "DEBUG ($vandaagstring) " . $errorline->{file} . "\t=> " . $errorline->{errormessage} . "\n";
-				}
-			} else {
-				print $data "($vandaagstring) " . $errorline->{file} . "\t=> " . $errorline->{errormessage} . "\n";
-			}
+	my $type = shift;
+	my $text = "";
+	my $errortype = "";
+	foreach my $errorline (@Errorlines) {
+		if ($errorline->{errortype} == DEBUG) {
+			$errortype = "DEBUG";
+		} elsif ($errorline->{errortype} == WARNING) {
+			$errortype = "WARNING";
+		} else {
+			$errortype = "ERROR";
 		}
-		foreach my $bestand (@Bestanden) {
-			if (($bestand->{hernoem} == 0) && (defined $bestand->{datum})) {
-				my $datestring = sprintf("%04s%02s%02s-%02s%02s%02s", $bestand->{datum}->year(), $bestand->{datum}->month(), $bestand->{datum}->day(), 
-					$bestand->{datum}->hour(), $bestand->{datum}->minute(), $bestand->{datum}->second());
-				print $data "($vandaagstring) " . $bestand->{bestand} . " ($datestring)\t=> niet hernoemd\n";
-			}
-			if (($bestand->{schrijfexif} != 1) && ($bestand->{hernoem} == 1)) {
-				print $data "($vandaagstring) " . $bestand->{bestand} . " Geen exif-waardes geschreven\n";
-			}
-				
+		if ($errorline->{errortype} >= $type) {
+			$text = $text . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
 		}
 	}
+	return $text;
 }
+
+sub printall {
+	my $self = shift;
+	my $text = sprintf("%-20s %-20s\n", "Filter", $self->filter());
+	my @files = $self->getfiles();
+	$text = $text . sprintf("%-20s %d\n", "Count", scalar(@files));
+	foreach my $file (@files) {
+		$text = $text . sprintf("%-20s %-50s\n", "", $file);
+	}
+	if (defined $self->numbering()) {
+		$text = $text . sprintf("%-20s %-50s\n", "Numbering", $self->numbering());
+	}
+	return $text;
+}
+
 
 1;

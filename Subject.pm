@@ -66,6 +66,8 @@ use Image::ExifTool ':Public';
 use Time::localtime;
 use DateTime::Format::Strptime;
 use constant { true => 1, false => 0 };
+use constant { ERROR => 2, WARNING => 1, DEBUG => 0);
+
 
 my @Errorlines;
 # initieel meegeven: 
@@ -93,12 +95,16 @@ sub _init {
 
 sub seterror {
 	my $self = shift;
-	my $type = shift || "";
+	my $type = shift || DEBUG;
 	my $message = shift || "";
 	push (@Errorlines, {"file" => "subject", "errortype" => $type, "errormessage" => $message});
 }
 
-
+sub setdebug {
+	my $self = shift;
+	my $message = shift || "";
+	push (@Errorlines, {"file" => "subject", "errortype" => DEBUG, "errormessage" => $message});
+}
 
 sub overwrite_title {
 	my $self = shift;
@@ -132,18 +138,18 @@ sub datetime_start {
 			my $format = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d %H:%M:%S");
 			$datetime_start = $format->parse_datetime($self->{datetime_start});
 			if (!($datetime_start)) {
-				$self->seterror("warning", sprintf("datetime-start %s is not correct", $self->{datetime_start}));
+				$self->seterror(WARNING, sprintf("datetime-start %s is not correct", $self->{datetime_start}));
 				$self->{datetime_error} = true;
 			}
 		} elsif ($self->{datetime_start} =~ m/\d{4}-\d{2}-\d{2}/) {
 			my $format = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d");
 			$datetime_start = $format->parse_datetime($self->{datetime_start});
 			if (!($datetime_start)) {
-				$self->seterror("warning", sprintf("datetime-start %s is not correct", $self->{datetime_start}));
+				$self->seterror(WARNING, sprintf("datetime-start %s is not correct", $self->{datetime_start}));
 				$self->{datetime_error} = true;
 			}
 		} else {
-			$self->seterror("warning", sprintf("datetime-start %s has not a proper format", $self->{datetime_start}));
+			$self->seterror(WARNING, sprintf("datetime-start %s has not a proper format", $self->{datetime_start}));
 			$self->{datetime_error} = true;
 		}
 	}
@@ -163,7 +169,7 @@ sub datetime_end {
 			my $format = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d");
 			$datetime_end = $format->parse_datetime($self->{datetime_end});
 		} else {
-			$self->seterror("warning", sprintf("datetime-end %s has not a proper format", $self->{datetime_end}));
+			$self->seterror(WARNING, sprintf("datetime-end %s has not a proper format", $self->{datetime_end}));
 			$self->{datetime_error} = true;
 		}
 # check if datetime_end after datetime_start
@@ -171,7 +177,7 @@ sub datetime_end {
 			my $datetime_start = $self->datetime_start();
 			if (defined $datetime_start) {
 				if ($datetime_end <= $datetime_start) {
-					$self->seterror("warning", sprintf("datetime-end %s is before datime-start %04s-%02s-%02s %02s:%02s:%02s", 
+					$self->seterror(WARNING, sprintf("datetime-end %s is before datime-start %04s-%02s-%02s %02s:%02s:%02s", 
 						$self->{datetime_end}, 
 						$datetime_start->year(), $datetime_start->month(), $datetime_start->day(),
 						$datetime_start->hour(), $datetime_start->minute(), $datetime_start->second()));
@@ -179,7 +185,7 @@ sub datetime_end {
 				}
 			}
 		} else {
-			$self->seterror("warning", sprintf("datetime-end %s is not correct", $self->{datetime_end}));
+			$self->seterror(WARNING, sprintf("datetime-end %s is not correct", $self->{datetime_end}));
 			$self->{datetime_error} = true;
 		}
 	}
@@ -202,11 +208,11 @@ sub timeshift {
 			my $format = DateTime::Format::Strptime->new(pattern => "%H:%M:%S");
 			$timeshift = $format->parse_datetime($tempvalue);
 			if (!($timeshift)) {
-				$self->seterror("warning", sprintf("timeshift %s is not correct", $self->{timeshift}));
+				$self->seterror(WARNING, sprintf("timeshift %s is not correct", $self->{timeshift}));
 				$self->{datetime_error} = true;
 			}
 		} else {
-			$self->seterror("warning", sprintf("timeshift %s has not a proper format", $self->{timeshift}));
+			$self->seterror(WARNING, sprintf("timeshift %s has not a proper format", $self->{timeshift}));
 			$self->{datetime_error} = true;
 		}
 	}
@@ -246,6 +252,11 @@ sub is_file_within_dateperiod {
 	return $value;
 }
 
+sub errors {
+	shift;
+	return @Errorlines;
+}
+
 sub printboolean {
 	shift;
 	my $boolean = shift;
@@ -259,11 +270,21 @@ sub printboolean {
 # public
 sub printerrors {
 	my $self = shift;
-	my $tekst = "\n";
+	my $type = shift || ERROR;
+	my $text = "\n";
+	my $errortype = "";
 	foreach my $errorline (@Errorlines) {
-		$tekst = $tekst . sprintf("%-10s %-100s\n", $errorline->{errortype}, $errorline->{errormessage});
+		if ($errorline->{errortype} >= $type) {
+			if ($errorline->{errortype} == DEBUG) {
+				$errortype = "DEBUG";
+			} elsif ($errorline->{errortype} == WARNING) {
+				$errortype = "WARNING";
+			} else {
+				$errortype = "ERROR";
+			}
+			$text = $tekst . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
 	}
-	return $tekst;
+	return $text;
 }
 
 sub printall {
