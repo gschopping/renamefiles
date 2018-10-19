@@ -77,6 +77,8 @@ use DateTime::Duration;
 use constant { true => 1, false => 0 };
 use constant { OK => 1, NoChanges => 2, WriteError => 0 };
 use constant { ERROR => 2, WARNING => 1, DEBUG => 0};
+use utf8;
+
 
 # default values
 my $default_extension = "JPG";
@@ -96,6 +98,7 @@ my $empty = "[empty]";
 
 my @Errorlines;
 
+binmode(STDOUT, ":utf8");
 
 # initieel meegeven: 
 #	filename
@@ -149,6 +152,7 @@ sub initdatum {
 	my $self = shift;
 	if (defined $self->{filename}) {
 		my $exiftool = new Image::ExifTool;
+		%Image::ExifTool::UserDefined::Options = ( LargeFileSupport => 1, Charset => "UTF8" );
 		$self->{writable} = Image::ExifTool::CanWrite($self->extension());
 		my $info = $exiftool->ImageInfo($self->filename_with_folder());
 		my $parser = DateTime::Format::Strptime->new(pattern => $self->exif_datetimeformat());
@@ -476,7 +480,7 @@ sub rename {
 	my $newfile;
 	my $space = "";
 	my $prefix_string = $self->prefix_string($numbering);
-	if (($prefix_string ne "") && ($title ne "")){
+	if ((defined $prefix_string) && (defined $title)){
 		$space = " ";
 	}
 	
@@ -489,17 +493,19 @@ sub rename {
 			rename $self->filename_with_folder(), $newfile;
 		}
 	} else {
-		while (-e $self->folder() . $prefix_string . $subchar . $space . $title . "." . $self->extension()) {
-			$subchar = chr(1 + ord $subchar);
-		}
-		$newfile = $prefix_string . $subchar . $space . $title . "." . $self->extension();
-		print $self->filename() . " =>\t$newfile\n";
-		$self->setdebug($self->filename(), "rename", $newfile);
-		$newfile = $self->folder() . $newfile;
-		if ($self->{norename} eq false) {
-			my $success = rename $self->filename_with_folder(), $newfile;
-			if ($success eq true) {
-				$self->{filename} = $newfile;
+		if (defined $subchar) {
+			while (-e $self->folder() . $prefix_string . $subchar . $space . $title . "." . $self->extension()) {
+				$subchar = chr(1 + ord $subchar);
+			}
+			$newfile = $prefix_string . $subchar . $space . $title . "." . $self->extension();
+			print $self->filename() . " =>\t$newfile\n";
+			$self->setdebug($self->filename(), "rename", $newfile);
+			$newfile = $self->folder() . $newfile;
+			if ($self->{norename} eq false) {
+				my $success = rename $self->filename_with_folder(), $newfile;
+				if ($success eq true) {
+					$self->{filename} = $newfile;
+				}
 			}
 		}
 	}
@@ -533,6 +539,7 @@ sub write_exiftags {
 	my $self = shift;
 	my $aliases = shift;
 	if (defined $aliases) {
+		%Image::ExifTool::UserDefined::Options = ( LargeFileSupport => 1, Charset => "UTF8" );
 		my $exiftool = new Image::ExifTool;
 
 	# wijzig de exif-attributen in het bestand
@@ -557,33 +564,34 @@ sub write_exiftags {
 			}
 		}
 		if (($write_exif eq true) && ($self->{norename} eq false)) {
-			$success = $exiftool->WriteInfo($self->filename());
+			$success = $exiftool->WriteInfo($self->filename_with_folder());
 			$self->{exif_written} = $success;
-			# if ($success != 1) {
+			if ($success ne OK) {
+				$self->seterror(ERROR, sprintf("Can not write tags to %s", $self->filename()));
 	# nogmaal schrijven maar dan tag voor tag, een stuk langzamer,maar dat moet dan maar
-				# $exiftool->RestoreNewValues();
-				# foreach my $exifvalue ($alias->aliases()) {
-					# if ($exifvalue->waarde() ne $leeg) {
-						# if ($exifvalue->type() eq "datum") {
-							# $success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->abswaarde(), Shift => $exifvalue->datumshift());
-							# $bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde() . ", " . $exifvalue->datumshift());
-						# } else {
-							# $success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->waarde());
-							# $bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde());
-						# }
-						# if (! $success) {
-							# $bestand->seterror($file->bestand(), "exif", "Kan " . $exifvalue->titel() . ", " . $exifvalue->waarde() . " niet schrijven (2)");
-						# } else {
-							# $success = $exiftool->WriteInfo($file->bestand());
-							# $file->setschrijfexif($success);
-							# if ($success != 1) {
-								# $bestand->seterror($file->bestand(), "exif", "Kan exif-waarde " . $exifvalue->titel() . " niet schrijven (3)");
-								# $exifvalue->nietgeschreven();
-							# }
-						# }
-					# }
-				# }
-			# }
+				$exiftool->RestoreNewValues();
+				foreach my $alias ($aliases->aliases()) {
+					if ($alias->value_or_default() ne $empty) {
+						if ($alias->type() eq "datetime") {
+							$success = $exiftool->SetNewValue($alias->title() => $alias->absvalue_or_default(), Shift => $alias->dateshift());
+							$self->setdebug("Exiftool:SetNewValue", $alias->title() . ", " . $alias->value_or_default() . ", " . $alias->dateshift());
+						} else {
+							$success = $exiftool->SetNewValue($alias->title() => $alias->value_or_default());
+							$self->setdebug("Exiftool:SetNewValue", $alias->title() . ", " . $alias->value_or_default());
+						}
+						if ($success eq WriteError) {
+							$self->seterror(ERROR, sprintf("Can not write tag %s with value %s", $alias->title(), $alias->value_or_default()));
+						} else {
+							$success = $exiftool->WriteInfo($self->filename_with_folder());
+							$self->{exif_written} = $success;
+							if ($success ne OK) {
+								$self->seterror(ERROR, sprintf("Can not write tags to %s", $self->filename()));
+								$alias->notwritten();
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }
@@ -596,6 +604,9 @@ sub errors {
 sub printerrors {
 	my $self = shift;
 	my $type = shift;
+	if (! defined $type) {
+		$type = DEBUG;
+	}
 	my $text = "";
 	my $errortype = "";
 	foreach my $errorline (@Errorlines) {

@@ -130,8 +130,8 @@ sub getfiles {
 	my @files = ();
 	if (defined $self->filter()) {
 		$self->setdebug($self->filter(), "getfiles:filter", $self->folder() . $self->filter());
-#		my @files = glob("\"" . $self->folder() . $self->filter() . "\"");
-		@files = glob($self->folder() . $self->filter());
+		@files = glob("\"" . $self->folder() . $self->filter() . "\"");
+#		@files = glob($self->folder() . $self->filter());
 #		my @files = glob("\"" . $filter. "\"");
 #		my @files = glob($self->filter());
 		$self->setdebug($self->filter(), "getfiles:filter", "number of files: " . scalar(@files));

@@ -235,7 +235,7 @@ sub is_file_within_dateperiod {
 	my $filedatetime = shift;
 	my $value = false;
 # shift start datetime en end datetime with timezone and timeshift
-	if ($self->{datetime_error} eq false) {
+	if ((defined $filedatetime) && ($self->{datetime_error} eq false)) {
 		my $datetime_start = $self->datetime_start();
 		if (defined $datetime_start) {
 			if ($filedatetime >= $datetime_start) {

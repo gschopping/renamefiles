@@ -94,6 +94,8 @@
 # use module
 use strict;
 use warnings;
+our $VERSION = '1.0';
+
 
 use Image::ExifTool ':Public';
 use Time::localtime;
@@ -112,12 +114,15 @@ use constant { ERROR => 2, WARNING => 1, DEBUG => 0};
 my @Errorlines = ();
 
 sub printerrors {
-	my $self = shift;
 	my $type = shift;
+	if (! defined $type) {
+		$type = DEBUG;
+	}
+	my $todaystring = sprintf("%04d-%02d-%02d %02d:%02d:%02d", localtime->year()+1900, localtime->mon()+1, localtime->mday(), localtime->hour(), localtime->min(), localtime->sec());
 	my $text = "";
 	my $errortype = "";
 	foreach my $errorline (@Errorlines) {
-#		if ($errorline->{errortype} >= $type) {
+		if ($errorline->{errortype} >= $type) {
 			if ($errorline->{errortype} == DEBUG) {
 				$errortype = "DEBUG";
 			} elsif ($errorline->{errortype} == WARNING) {
@@ -125,8 +130,8 @@ sub printerrors {
 			} else {
 				$errortype = "ERROR";
 			}
-			$text = $text . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
-#		}
+			$text = $text . sprintf("%-20s %-30s %-10s %-100s\n", $todaystring, $errorline->{file}, $errortype, $errorline->{errormessage});
+		}
 	}
 	return $text;
 }
@@ -176,19 +181,19 @@ my $foldererror = shift || $folder;
 
 
 if ($debug eq true) {
-	my $format = "%-40s %-50s\n";
-	print sprintf($format, "Folder", $folder);
-	print sprintf($format, "Folder start.xml", $folderxml);
-	print sprintf($format, "Folder errors.txt", $foldererror);
+	my $format = "%-20s %-30s\n";
+	printf("$format", "Folder", $folder);
+	printf("$format", "Folder start.xml", $folderxml);
+	printf("$format", "Folder errors.txt", $foldererror);
 	if ($clearfile eq false) {
-		print sprintf($format, "Clean up errors.txt", "no");
+		printf("$format", "Clean up errors.txt", "no");
 	} else {
-		print sprintf($format, "Clean up errors.txt", "ja");
+		printf("$format", "Clean up errors.txt", "ja");
 	}
 	if ($norename eq false) {
-		print sprintf($format, "Rename", "yes");
+		printf("$format", "Rename", "yes");
 	} else {
-		print sprintf($format, "Rename", "no");
+		printf("$format", "Rename", "no");
 	}
 }
 	
@@ -209,7 +214,6 @@ my $xml = XML::Simple->new;
 
 # read XML file
 my $data = $xml->XMLin($folderxml . 'start.xml', ForceArray => ['convert', 'alias', 'subject']) or die $errorfile;
-my $todaystring = sprintf("%04d-%02d-%02d %02d:%02d:%02d", localtime->year()+1900, localtime->mon()+1, localtime->mday(), localtime->hour(), localtime->min(), localtime->sec());
 
 # lees alle waardes voor aliassen in. Deze array vormt de basis voor het vullen van de exif-informatie in het bestand
 # titel:	titel van de exif-tag
@@ -284,6 +288,10 @@ foreach my $convert (@{$data->{convert}}) {
 	push @Errorlines, $convertobject->errors();
 }
 
-print $errorfile printerrors(DEBUG);
+if ($debug eq true) {
+	print $errorfile printerrors(DEBUG);
+} else {
+	print $errorfile printerrors(WARNING);
+}
 
 close($errorfile);
