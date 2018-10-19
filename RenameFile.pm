@@ -76,7 +76,7 @@ use DateTime::Format::Strptime;
 use DateTime::Duration;
 use constant { true => 1, false => 0 };
 use constant { OK => 1, NoChanges => 2, WriteError => 0 };
-use constant { ERROR => 2, WARNING => 1, DEBUG => 0);
+use constant { ERROR => 2, WARNING => 1, DEBUG => 0};
 
 # default values
 my $default_extension = "JPG";
@@ -213,6 +213,7 @@ sub initdatum {
 			}
 		}
 	# set timeshift to zero
+		$self->{timeshift_set} = false;
 		$self->{timeshift} = $parser->parse_datetime("00:00:00");
 		$self->{timeshift_sign} = 1;
 		$self->{timezoneshift} = $parser->parse_datetime("00:00:00");
@@ -322,6 +323,22 @@ sub timezone {
 	return $timezone;
 }
 
+sub settimeshift {
+	my $self = shift;
+	my $timeshift = shift;
+	my $timeshift_sign = shift;
+# timeshift is not set via alias
+	if ((defined $timeshift) && ($self->{timeshift_set} eq false)) {
+		$self->{timeshift} = $timeshift;
+		if (defined $timeshift_sign) {
+			$self->{timeshift_sign} = $timeshift_sign;
+		} else {
+			$self->{timeshift_sign} = 1;
+		}
+	}
+}
+	
+
 sub timeshift {
 	my $self = shift;
 	return $self->{timeshift};
@@ -379,11 +396,9 @@ sub writable {
 	return $self->{writable} || false;
 }
 
-sub prefix_string {
+# corrected datetime with timezone, timeshift and timezoneshift corrections
+sub corrected_datetime {
 	my $self = shift;
-	my $numbering = shift;
-	my $prefix = "";
-	my $numberingstring;
 	my $datetime = $self->datetime();
 	if ((defined $datetime) && (defined $self->timeshift()) && (defined $self->timezone())) {
 		if ($self->timeshift_sign() == 1) {
@@ -392,7 +407,7 @@ sub prefix_string {
 				DateTime::Duration->new(hours => $self->timezone()->hour(), minutes => $self->timezone()->minute(), seconds => $self->timezone()->second());
 			if ($self->timezoneshift_sign() == 1) {
 				$datetime = $datetime +  
-					DateTime::Duration->new(hours => $self->timezoneshift()->hour(), minutes => $self->timezoneshif()->minute(), seconds => $self->timezoneshift()->second());
+					DateTime::Duration->new(hours => $self->timezoneshift()->hour(), minutes => $self->timezoneshift()->minute(), seconds => $self->timezoneshift()->second());
 			} else {
 				$datetime = $datetime -  
 					DateTime::Duration->new(hours => $self->timezoneshift()->hour(), minutes => $self->timezoneshift()->minute(), seconds => $self->timezoneshift()->second());
@@ -410,6 +425,18 @@ sub prefix_string {
 			}
 				
 		}
+	}
+	return $datetime;
+}
+	
+
+sub prefix_string {
+	my $self = shift;
+	my $numbering = shift;
+	my $prefix = "";
+	my $numberingstring;
+	my $datetime = $self->corrected_datetime();
+	if (defined $datetime) {
 		$numberingstring = sprintf("%02s%02s%02s", $datetime->hour(), $datetime->minute(), $datetime->second());
 		$prefix = sprintf("%04s%02s%02s", $datetime->year(), $datetime->month(), $datetime->day());
 	}
@@ -478,6 +505,30 @@ sub rename {
 	}
 }
 
+sub set_exiftags {
+	my $self = shift;
+	my $aliases = shift;
+	if (defined $aliases) {
+		foreach my $alias ($aliases->aliases()) {
+			if ($alias->value_or_default() ne $empty) {
+	# vul de exif-waardes in als de exif-tag overeenkomt met de definitie in convert
+				if ($alias->isexif_title($self->exif_title())) {
+					$self->{title} = $alias->value_or_default();
+				}
+				if ($alias->isexif_datetime($self->exif_datetime())) {
+					$self->{timeshift} = $alias->datetime_value();
+					$self->{timeshift_sign} = $alias->dateshift();
+					$self->{timeshift_set} = true;
+				}
+				if ($alias->isexif_datetime($self->exif_timezone())) {
+					$self->{timezoneshift} = $alias->datetime_value();
+					$self->{timezoneshift_sign} = $alias->dateshift();
+				}
+			}
+		}
+	}
+}
+
 sub write_exiftags {
 	my $self = shift;
 	my $aliases = shift;
@@ -502,18 +553,6 @@ sub write_exiftags {
 				} else {
 					$write_exif = true;
 					$alias->written();
-				}
-	# vul de exif-waardes in als de exif-tag overeenkomt met de definitie in convert
-				if ($alias->isexif_title($self->exif_title())) {
-					$self->{title} = $alias->value_or_default();
-				}
-				if ($alias->isexif_datetime($self->exif_datetime())) {
-					$self->{timeshift} = $alias->datetime_value();
-					$self->{timeshift_sign} = $alias->dateshift();
-				}
-				if ($alias->isexif_datetime($self->exif_timezone())) {
-					$self->{timezoneshift} = $alias->datetime_value();
-					$self->{timezoneshift_sign} = $alias->dateshift();
 				}
 			}
 		}
@@ -556,8 +595,8 @@ sub errors {
 
 sub printerrors {
 	my $self = shift;
-	my $type = shift || ERROR;
-	my $text = "\n";
+	my $type = shift;
+	my $text = "";
 	my $errortype = "";
 	foreach my $errorline (@Errorlines) {
 		if ($errorline->{errortype} >= $type) {
@@ -568,7 +607,8 @@ sub printerrors {
 			} else {
 				$errortype = "ERROR";
 			}
-			$text = $tekst . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
+			$text = $text . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
+		}
 	}
 	return $text;
 }

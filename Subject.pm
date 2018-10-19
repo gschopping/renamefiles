@@ -66,7 +66,7 @@ use Image::ExifTool ':Public';
 use Time::localtime;
 use DateTime::Format::Strptime;
 use constant { true => 1, false => 0 };
-use constant { ERROR => 2, WARNING => 1, DEBUG => 0);
+use constant { ERROR => 2, WARNING => 1, DEBUG => 0};
 
 
 my @Errorlines;
@@ -200,7 +200,7 @@ sub timeshift {
 # extract minus sign if applicable
 		my $tempvalue = $self->{timeshift};
 		if (substr($self->{timeshift}, 0, 1) eq "-") {
-			$tempvalue = substr($self->value(), 1, length($self->{timeshift})-1);
+			$tempvalue = substr($self->{timeshift}, 1, length($self->{timeshift})-1);
 			$self->{shifting} = -1;
 		}
 # check if datetime_end has proper format
@@ -219,6 +219,11 @@ sub timeshift {
 	return $timeshift;
 }
 
+sub timeshift_sign {
+	my $self = shift;
+	return $self->{shifting};
+}
+
 sub datetime_error {
 	my $self = shift;
 	return $self->{datetime_error}
@@ -226,13 +231,12 @@ sub datetime_error {
 
 sub is_file_within_dateperiod {
 	my $self = shift;
+# input is corrected filedatetime with correction of timezone, timeshift and timezoneshift
 	my $filedatetime = shift;
-	my $timezone = shift;
 	my $value = false;
 # shift start datetime en end datetime with timezone and timeshift
 	if ($self->{datetime_error} eq false) {
 		my $datetime_start = $self->datetime_start();
-		$filedatetime = $filedatetime + $timezone + $self->{shifting} * $self->timeshift();
 		if (defined $datetime_start) {
 			if ($filedatetime >= $datetime_start) {
 				$value = true;
@@ -270,8 +274,8 @@ sub printboolean {
 # public
 sub printerrors {
 	my $self = shift;
-	my $type = shift || ERROR;
-	my $text = "\n";
+	my $type = shift;
+	my $text = "";
 	my $errortype = "";
 	foreach my $errorline (@Errorlines) {
 		if ($errorline->{errortype} >= $type) {
@@ -282,7 +286,8 @@ sub printerrors {
 			} else {
 				$errortype = "ERROR";
 			}
-			$text = $tekst . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
+			$text = $text . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
+		}
 	}
 	return $text;
 }

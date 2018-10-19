@@ -164,6 +164,25 @@ sub numbering {
 	my $self = shift;
 	return $self->{numbering};
 }
+
+sub counter {
+	my $self = shift;
+	my $counter = 1;
+	if ($self->numbering =~ /^\d+$/) {
+		$counter = $self->{numbering};
+	}
+	return $counter;
+}
+
+sub iscounter {
+	my $self = shift;
+	my $iscounter = false;
+	if ($self->numbering =~ /^\d+$/) {
+		$iscounter = true;
+	}
+	return $iscounter;
+}
+
 sub positions {
 	my $self = shift;
 	return $self->{positions};

@@ -1,26 +1,7 @@
 #!/usr/local/bin/perl -w
 
-#versie 04-03-2017
+#version 19-10-2018
 
-# Wijzigingen
-# Datum			Omschrijving
-# 07-01-2014	Subnummering toegevoegd
-# 20-03-2015	DateTimeOriginal en format voor exif
-# 25-04-2015	Conditie op basis van datum/tijdstip
-# 19-02-2016	datum/tijd ophalen uit bestand: tijdstip van aanmaken, wijzigen of toegang
-# 11-09-2016	tags filter en nummering onderbrengen onder filter, nieuwe tag exif
-# 27-11-2016	alias toegevoegd, waarmee het eenvoudiger wordt exif informatie aan de foto/video toe te voegen
-# 03-12-2016	objecten Alias en Bestand toegevoegd
-# 04-03-2017	Check of bestand met exif-informatie geschreven kan worden (CanWrite) en check of tags schrijfbaar zijn (GetWritableTags)
-# 26-03-2017	Nieuw object EenBestand toegevoegd en van de aparte packegs modules gemaakt (C:\Dwimperl\perl\site\lib\My)
-# 07-07-2017	onderwerp leegmaken aan einde van for loop
-# 27-01-2018	foutje hersteld in hernoemen indien bestand bestaat (met subnummering)
-
-# TO DO
-# 09-09-2018	TimeZone meenemen in tijdsbepaling. Tevens timeshift indien van toepassing vooraf calculeren alvorens vergelijken met begin- en eindtijd
-#		Daarmee wordt de begin- en eindtijd niet afhankelijk van de verkeerde tijd in het bestand
-#		Meer foutcontroles uitvoeren: begintijd moet vóór eindtijd liggen, tijdstippen moeten voldoen aan correct formaat
-#		Controle op alle tags, of die bestaan en melden als een onbekende tag wordt gebruikt
 
 # ------------------------ Gebruik ---------------------------------------------------------------------------------------------------#
 #
@@ -120,17 +101,44 @@ use XML::Simple;
 use DateTime::Format::Strptime;
 use File::stat;
 use Getopt::Std;
-use RenameFiles::EenBestand;
-use RenameFiles::Bestand;
-use RenameFiles::Alias;
+use RenameFiles::Convert;
+use RenameFiles::Subject;
+use RenameFiles::RenameFile;
+use RenameFiles::Aliases;
+use constant { true => 1, false => 0 };
+use constant { ERROR => 2, WARNING => 1, DEBUG => 0};
 
-# meegeven als parameter
+
+my @Errorlines = ();
+
+sub printerrors {
+	my $self = shift;
+	my $type = shift;
+	my $text = "";
+	my $errortype = "";
+	foreach my $errorline (@Errorlines) {
+#		if ($errorline->{errortype} >= $type) {
+			if ($errorline->{errortype} == DEBUG) {
+				$errortype = "DEBUG";
+			} elsif ($errorline->{errortype} == WARNING) {
+				$errortype = "WARNING";
+			} else {
+				$errortype = "ERROR";
+			}
+			$text = $text . sprintf("%-30s %-10s %-100s\n", $errorline->{file}, $errortype, $errorline->{errormessage});
+#		}
+	}
+	return $text;
+}
+
+
+# you can set as parameter
 #	-d	debug
-#	-n	no rename (alleen uitvoer tonen,niet wijzigen
-#	-x	locatie start.xml
-#	-f	map waar de te hernoemen bestanden staan
-#	-e	locatie fouten.txt
-#	-c 	opschonen fouten.txt
+#	-n	no rename (only show output without actually renaming
+#	-x	location for start.xml
+#	-f	folder for the files to be renamed
+#	-e	location for the errors.txt
+#	-c 	clean up before adding errors.txt
 
 use vars qw/$opt_d/;
 use vars qw/$opt_n/;
@@ -139,63 +147,48 @@ use vars qw/$opt_f/;
 use vars qw/$opt_e/;
 use vars qw/$opt_c/;
 
-my $debug = 0;
+my $debug = false;
 getopt('d');
 if (defined $opt_d) {
-	$debug = 1
+	$debug = true
 }
 
-my $norename = 0;
+my $norename = false;
 getopt('n');
 if (defined $opt_n) {
-	$norename = 1;
+	$norename = true;
 }
 
-my $clearfile = 0;
+my $clearfile = false;
 getopt('c');
 if (defined $opt_c) {
-	$clearfile = 1;
+	$clearfile = true;
 }
 
 getopt('f');
-my $map = shift || "X:/Onbewerkt/";
+my $folder = shift || "X:/Onbewerkt/";
 
 getopt('x');
-my $mapxml = shift || $map;
+my $folderxml = shift || $folder;
 
 getopt('e');
-my $maperror = shift || $map;
+my $foldererror = shift || $folder;
 
 
-# lege waarde
-my $leeg = "[leeg]";
-# my $default_extensie = "JPG";
-# my $default_exifdatum = "DateTimeOriginal";
-# my $default_exifdatumformaat = "%Y:%m:%d %H:%M:%S";
-# my $default_datum = "Vandaag";
-# my $default_voorloop = "Vandaag";
-my $default_subwaarde = "a";
-# my $default_posities = 3;
-
-my $mapdir = $map;
-if (substr($mapdir, -1) eq "/") {
-	$mapdir =~ s/.{1}$//;
-}
-
-
-if ($debug == 1) {
-	print "map:\t\t\t$mapdir\n";
-	print "map start.xml:\t\t$mapxml\n";
-	print "map fouten.txt:\t\t$maperror\n";
-	if ($clearfile == 0) {
-		print "fouten.txt opschonen:\tnee\n";
+if ($debug eq true) {
+	my $format = "%-40s %-50s\n";
+	print sprintf($format, "Folder", $folder);
+	print sprintf($format, "Folder start.xml", $folderxml);
+	print sprintf($format, "Folder errors.txt", $foldererror);
+	if ($clearfile eq false) {
+		print sprintf($format, "Clean up errors.txt", "no");
 	} else {
-		print "fouten.txt opschonen:\tja\n";
+		print sprintf($format, "Clean up errors.txt", "ja");
 	}
-	if ($norename == 0) {
-		print "Hernoemen:\t\tja\n";
+	if ($norename eq false) {
+		print sprintf($format, "Rename", "yes");
 	} else {
-		print "Hernoemen:\t\tnee\n";
+		print sprintf($format, "Rename", "no");
 	}
 }
 	
@@ -203,10 +196,10 @@ if ($debug == 1) {
 
 # maak foutenbestand
 my $errorfile;
-if ($clearfile == 0) {
-	open($errorfile, '>>', $maperror . 'fouten.txt') or die "Kan " . $maperror . "fouten.txt niet openen\n";
+if ($clearfile eq false) {
+	open($errorfile, '>>', $foldererror . 'errors.txt') or die printf("Can't open %s\n", $foldererror . "errors.txt");
 } else {
-	open($errorfile, '>', $maperror . 'fouten.txt') or die "Kan " . $maperror . "fouten.txt niet openen\n";
+	open($errorfile, '>', $foldererror . 'errors.txt') or die  printf("Can't open %s\n", $foldererror . "errors.txt");
 }
 
 
@@ -215,8 +208,8 @@ if ($clearfile == 0) {
 my $xml = XML::Simple->new;
 
 # read XML file
-my $data = $xml->XMLin($mapxml . 'start.xml', ForceArray => ['convert', 'alias', 'onderwerp']) or die $errorfile;
-my $vandaagstring = sprintf("%04d-%02d-%02d %02d:%02d:%02d", localtime->year()+1900, localtime->mon()+1, localtime->mday(), localtime->hour(), localtime->min(), localtime->sec());
+my $data = $xml->XMLin($folderxml . 'start.xml', ForceArray => ['convert', 'alias', 'subject']) or die $errorfile;
+my $todaystring = sprintf("%04d-%02d-%02d %02d:%02d:%02d", localtime->year()+1900, localtime->mon()+1, localtime->mday(), localtime->hour(), localtime->min(), localtime->sec());
 
 # lees alle waardes voor aliassen in. Deze array vormt de basis voor het vullen van de exif-informatie in het bestand
 # titel:	titel van de exif-tag
@@ -226,161 +219,71 @@ my $vandaagstring = sprintf("%04d-%02d-%02d %02d:%02d:%02d", localtime->year()+1
 # type:		als het type datum is dan wordt een datumbewerking uitgevoerd (optellen of aftrekken van uren, minuten, seconden
 my $alias;
 foreach my $aliastag (@{$data->{alias}}) {
-	my $alias_titel = $aliastag->{titel} || $leeg;
-	my $alias_default = $aliastag->{default} || $leeg;
-	my $alias_value = $aliastag->{content} || $leeg;
-	my $alias_type = $aliastag->{type} || $leeg;
-	$alias = RenameFiles::Alias->new("titel" => $alias_titel, "default" => $alias_default, "alias" => $alias_value, "type" => $alias_type);
+	$alias = RenameFiles::Aliases->new("title" => $aliastag->{title}, "default" => $aliastag->{default}, "alias" => $aliastag->{content}, "type" => $aliastag->{type});
 }
 
-if (! chdir $mapdir) {
-	print "Map is niet gewijzigd\n";
-}
-# system("dir");
 
-my $bestand;
 foreach my $convert (@{$data->{convert}}) {
-# bepaal waardes uit xml-bestand
-	$bestand = RenameFiles::Bestand->new("nummering" => $convert->{nummering}, "posities" => $convert->{posities}, 
-		"exifdatum" => $convert->{"exif-datum"}, "exifdatumformaat" => $convert->{"exif-datumformaat"}, "patroon" => $convert->{patroon},
-		"exiftitel" => $convert->{"exif-titel"}, "overschrijfvoorloop" => $convert->{"overschrijf-voorloop"}, "map" => $map, "debug" => $debug,
-		"filter" => $convert->{filter}, "exiftimezone" => $convert->{"exif-timezone"});
+# take convert tag from xml-file
+	my $convertobject = RenameFiles::Convert->new("numbering" => $convert->{numbering}, "positions" => $convert->{positions}, 
+		"exif_datetime" => $convert->{"exif-datetime"}, "exif_datetimeformat" => $convert->{"exif-datetimeformat"}, "pattern" => $convert->{pattern},
+		"exif_title" => $convert->{"exif-title"}, "overwrite_prefix" => $convert->{"overwrite-prefix"}, "folder" => $folder, "debug" => $debug,
+		"filter" => $convert->{filter}, "exif_timezone" => $convert->{"exif-timezone"}, "exif_timezoneformat" => $convert->{"exif-timezoneformat"});
+	my $count = $convertobject->counter();
 	
-	foreach my $onderwerp (@{$convert->{onderwerp}}) {
-		$bestand->setdebug($convert->{filter}, "Onderwerp", $onderwerp->{titel});
-# maak alle waardes in de alias-array leeg
+	foreach my $subject (@{$convert->{subject}}) {
+		my $subjectobject = RenameFiles::Subject->new("overwrite_title" => $subject->{"overwrite-title"}, "title" => $subject->{"title"},
+			"datetime_start" => $subject->{ "datetime-start"}, "datetime_end" => $subject->{"datetime-end"}, "timeshift" => $subject->{"timeshift"});
+		$convertobject->setdebug($convertobject->filter(), "Subject", $subject->{title});
+# clear all values in alias array
 		if (defined $alias) {
 			$alias->clearall();
-	# de waardes in de aliasarray wordt aangevuld met de waardes van exif
-			foreach my $exif (@{$onderwerp->{exif}}) {
-				$bestand->setdebug($convert->{filter}, "Exif", $exif->{"alias-titel"});
-				my $exif_alias = $exif->{"alias-titel"} || $leeg;
-				my $exif_titel = $exif->{titel} || $leeg;
-				my $exif_value = $exif->{content} || $leeg;
-				my $exif_type = $exif->{type} || $leeg;
-				if (($exif_alias ne $leeg) && ($exif_titel eq $leeg)) {
-					$alias->value_for_alias($exif_alias, $exif_value);
+	# the values in the alias array will be filled from the values in the exif tags
+			foreach my $exif (@{$subject->{exif}}) {
+				$convertobject->setdebug($convertobject->filter(), "Exif", $exif->{"alias-titel"});
+				my $found = false;
+				if ((defined $exif->{"alias-title"}) && (defined $exif->{content})) {
+					$found = $alias->setvalue_for_alias($exif->{"alias-title"}, $exif->{content});
+				} elsif ((defined $exif->{title}) && (defined $exif->{content})) {
+					$found = $alias->setvalue_for_title($exif->{title}, $exif->{content});
+					if ($found eq false) {
+						$alias = Aliases->new("title" => $exif->{"alias-title"}, "default" => undef, "value" => $exif->{content}, "type" => $exif->{type});
+					}
 				} else {
-					my $found = $alias->value_for_titel($exif_titel, $exif_value);
-					if ($found == 0) {
-						$alias = Alias->new("titel" => $exif_titel, "default" => $leeg, "value" => $exif_value, "type" => $exif_type);
-					}
+					$alias = Aliases->new("title" => $exif->{"alias-title"}, "default" => undef, "value" => $exif->{content}, "type" => $exif->{type});
 				}
+
 			}
 		}
-	
-		my @files = $bestand->geefbestanden($onderwerp->{"tijd-start"}, $onderwerp->{"tijd-einde"}, $onderwerp->{titel}, 
-			$onderwerp->{"overschrijf-titel"}, $onderwerp->{datumshift});
+	# read files for filter
+		my @files = $convertobject->getfiles();
+		my $count = $convertobject->counter();
+		my $numbering = $convertobject->numbering();
 		foreach my $file (@files) {
-			if (defined $alias) {
-				my $exiftool = new Image::ExifTool;
-
-		# wijzig de exif-attributen in het bestand
-				my $schrijfexif = 0;
-				$exiftool->SaveNewValues();
-				my $success;
-				foreach my $exifvalue ($alias->aliases()) {
-					if ($exifvalue->waarde() ne $leeg) {
-						if ($exifvalue->type() eq "datum") {
-							$success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->abswaarde(), Shift => $exifvalue->datumshift());
-							$bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde() . ", " . $exifvalue->datumshift());
-						} else {
-							$success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->waarde());
-							$bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde());
-						}
-						if (! $success) {
-							$bestand->seterror($file->bestand(), "exif", "Kan " . $exifvalue->titel() . ", " . $exifvalue->waarde() . " niet schrijven (1)");
-						} else {
-							$schrijfexif = 1;
-							$exifvalue->geschreven();
-						}
-		# vul de exif-waardes in als de exif-tag overeenkomt met de definitie in convert
-						if ($exifvalue->isexif_titel($convert->{"exif-titel"})) {
-							$file->settitel_exif($exifvalue->waarde());
-						}
-						if ($exifvalue->isexif_datum($convert->{"exif-datum"})) {
-							$file->setdatumshift_exif($exifvalue->waarde());
-						}
-
-					}
+			my $renamefileobject = RenameFiles::RenameFile->new("filename" => $file, "positions" => $convertobject->positions(),
+				"prefix" => $convertobject->prefix(), "exif_title" => $convertobject->exif_title(), "exif_datetime" => $convertobject->exif_datetime(),
+				"exif_datetimeformat" => $convertobject->exif_datetimeformat(), "exif_timezone" => $convertobject->exif_timezone(),
+				"exif_timezoneformat" => $convertobject->exif_timezoneformat(), "pattern" => $convertobject->pattern(),
+				"overwrite_prefix" => $convertobject->overwrite_prefix());
+			$renamefileobject->set_exiftags($alias);
+			$renamefileobject->settimeshift($subjectobject->timeshift(), $subjectobject->timeshift_sign());
+			if ($subjectobject->is_file_within_dateperiod($renamefileobject->corrected_datetime())) {
+				$renamefileobject->write_exiftags($alias);
+				if ($convertobject->iscounter()) {
+					$numbering = $count;
 				}
-				if (($schrijfexif == 1) && ($norename == 0)) {
-					$success = $exiftool->WriteInfo($file->bestand());
-					$file->setschrijfexif($success);
-					if ($success != 1) {
-		# nogmaal schrijven maar dan tag voor tag, een stuk langzamer,maar dat moet dan maar
-						$exiftool->RestoreNewValues();
-						foreach my $exifvalue ($alias->aliases()) {
-							if ($exifvalue->waarde() ne $leeg) {
-								if ($exifvalue->type() eq "datum") {
-									$success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->abswaarde(), Shift => $exifvalue->datumshift());
-									$bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde() . ", " . $exifvalue->datumshift());
-								} else {
-									$success = $exiftool->SetNewValue($exifvalue->titel() => $exifvalue->waarde());
-									$bestand->setdebug($file->bestand(), "Exiftool:SetNewValue", $exifvalue->titel() . ", " . $exifvalue->waarde());
-								}
-								if (! $success) {
-									$bestand->seterror($file->bestand(), "exif", "Kan " . $exifvalue->titel() . ", " . $exifvalue->waarde() . " niet schrijven (2)");
-								} else {
-									$success = $exiftool->WriteInfo($file->bestand());
-									$file->setschrijfexif($success);
-									if ($success != 1) {
-										$bestand->seterror($file->bestand(), "exif", "Kan exif-waarde " . $exifvalue->titel() . " niet schrijven (3)");
-										$exifvalue->nietgeschreven();
-									}
-								}
-							}
-						}
-					}
-				}
+				$renamefileobject->setrename($norename eq false);
+				$renamefileobject->rename($subjectobject->title($renamefileobject->title()), $numbering, $convertobject->subchar());
 			}
-			# print $file->print();
 			
-			my $voorloopstring = $file->voorloopstring();
-			my $omschrijving = $file->titel();
-			if (($voorloopstring ne "") && ($omschrijving ne "")){
-				$voorloopstring = $voorloopstring . " ";
-			}
-			my $subvoorloopstring = $file->voorloopstring();
-			
-			my $newfile;
-			unless (-e $map. $voorloopstring . $omschrijving . "." . $file->extensie()) {
-				$newfile = $voorloopstring . $omschrijving . "." . $file->extensie();
-				print $file->bestand() . " =>\t$newfile\n";
-				$bestand->seterror($file->bestand(), "rename", $newfile);
-				$newfile = $map . $newfile;
-				if ($norename == 0) {
-					rename $file->bestandplusmap(), $newfile;
-				}
-			} else {
-				my $subtemp = $convert->{sub} || $default_subwaarde;
-				$subvoorloopstring = $subvoorloopstring . $subtemp;
-				if (($subvoorloopstring ne "") && ($omschrijving ne "")){
-					$subvoorloopstring = $subvoorloopstring . " ";
-				}
-				while (-e $map . $subvoorloopstring . $omschrijving . "." . $file->extensie()) {
-					$subtemp = chr(1 + ord $subtemp);
-					$subvoorloopstring = $file->voorloopstring();
-					$subvoorloopstring = $subvoorloopstring . $subtemp;
-					if (($subvoorloopstring ne "") && ($omschrijving ne "")){
-						$subvoorloopstring = $subvoorloopstring . " ";
-					}
-				}
-				$newfile = $subvoorloopstring . $omschrijving . "." . $file->extensie();
-				print $file->bestand() . " =>\t$newfile\n";
-				$bestand->seterror($file->bestand(), "rename", $newfile);
-				$newfile = $map . $newfile;
-				if ($norename == 0) {
-					rename $file->bestandplusmap(), $newfile;
-				}
-			}
-			# print "-------------------------------------------\n";
-			# print "\n";
-		
+			$count++;
+			push @Errorlines, $renamefileobject->errors();
 		}
+		push @Errorlines, $subjectobject->errors();
 	}
+	push @Errorlines, $convertobject->errors();
 }
-$bestand->printerrorfile($errorfile, $vandaagstring);
-$bestand->clearall();
+
+print $errorfile printerrors(DEBUG);
 
 close($errorfile);
