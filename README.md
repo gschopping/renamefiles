@@ -71,10 +71,11 @@ All files should be in one folder
 
 In case of an error the information will be written in the file errors.txt in the same folder as the files
 
-------------------------------------------------------------------------------------------------------------------------------------#
+--------------
 
 ## Example
 
+```xml
 <config>
 	<alias title="IPTC:Country-PrimaryLocationCode" default="NLD">Landcode</alias>
 	<alias title="XMP:CountryCode" default="NLD">Landcode</alias>
@@ -123,3 +124,4 @@ In case of an error the information will be written in the file errors.txt in th
 		</subject>
 	</convert>
 </config>
+```
