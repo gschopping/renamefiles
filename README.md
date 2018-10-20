@@ -1,11 +1,11 @@
 # RenameFiles
 This Perl script is created in order to rename a bundle of files (can be phot, video, audio) in an approopriate format:
- 		20100309-120501 Description.jpg
+>       20100309-120501 Description.jpg
  
- However other variations are possible as well:
-		20100309-001 Description.jpg
-		Description.jpg
-		NoDate-001 Description.jpg
+However other variations are possible as well:
+>       20100309-001 Description.jpg
+>       Description.jpg
+>       NoDate-001 Description.jpg
 
 Where possible it retrieves the information within the files with the help of exiftool, but it can also retrieve the date and time
 from the pattern of the filename.
