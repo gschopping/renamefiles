@@ -3,90 +3,86 @@
 #version 19-10-2018
 
 
-# ------------------------ Gebruik ---------------------------------------------------------------------------------------------------#
+# ------------------------ Usuage ---------------------------------------------------------------------------------------------------#
 #
-# dit perl-script wordt gebruikt om bestanden massaal te hernoemen naar een vast formaat, dat ziet er als volgt uit:
-#              20100309-120501 Onderwep van de foto.jpg
+# This Perl script is created in order to rename a bundle of files (can be phot, video, audio) in an approopriate format:
+# 		20100309-120501 Description.jpg
 # 
-# Daar zijn variaties op mogelijk:
-#              20100309-001 Onderwerp van de foto.jpg
-#              Geen datum-001 Onderwerp van de foto.jpg
+# However other variations are possible as well:
+#		20100309-001 Description.jpg
+#		Description.jpg
+#		NoDate-001 Description.jpg
+#
+# Where possible it retrieves the information within the files with the help of exiftool, but it can also retrieve the date and time
+# from the pattern of the filename.
+#
+# The configuration is made with an xml-file: start.xml whcih you can place in the same directory as the files
+# All files should be in one folder
 #
 #
-# Maak daartoe een bestand aan met de naam start.xml en plaats deze in de map waar de bestanden staan, die hernoemd moeten worden
-# Als het script voltooid is, dan wordt het bestand start.xml hernoemd naar stop.xml. Alleen als dit bestand start.xml heet, dan
-# worden de bestanden daadwerkelijk hernoemd.
+# The content of the start.xml file should look like:
+# ==============================================================================================================================================================
+# level	tagname	compulsory	number		description
+# ==============================================================================================================================================================
+# 1	config	yes		1		all tags should be enclosed within the maintag <config> ... </config>, no additional attributes
+# 2	alias	no		0 or more	an alias is an easy way to set a set of exif-tags at once, and it's easier to remember, since you put all aliases
+#						one time
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 		attribute	default	description
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+#		title				name of the exif-tag (groupname:tagname)
+#		default				if the alias is not set at subject-level, the default value is used
+#		type				only necessary if it is of type datetime, in that case the value in this tag is taken as relative to the current
+#						date and time
+#		content				the value between the tagnames, the alias itself, this can be any name as you wish, and can be used further on
+#						you can als use the same alias for multiple exif-tags
+# ==============================================================================================================================================================
+# level	tagname	compulsory	number		description
+# ==============================================================================================================================================================
+# 2	convert	yes		1 or more	you set this tag for each search, a search is done like you do dir, eg *.jpg to find all files ending on .jpg
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 		attribute		default		description
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+#		filter			*.JPG		the search for files
+#		numbering		T		a number:	this is the starting number for the file, when you want a sequence of numbers in stead of a time
+#							T		instead of a number you take the time of the file
+#		positions		3		if not set, it pads the number with zeros up to 3 digits
+#		subchar			a		default is "a", in case two file will be renamed to the same name, it adds "a" after the number ot time in order
+#							to avoid overwriting of files. You can set to any character you want
+#		prefix					instead of datetime you can use a fixed prefix
+#		overwrite_prefix 	no		Force to use prefix instead of datetime, even if it can be found in the exif-information
+#		exif-title		Title		name of the tag where to find the title for the description of the file
+#		exif-datetime		DateTimeOriginal name of the tag where to find the datetime of the file
+#		exif-datetimeformat	%Y:%m:%d %H:%M:%S the is the standard format, it's very unlikely to change it
+#		exif-timezone		TimeZone	name of the tag where to find the timezone (if any) in the file
+#		exif-timezoneformat	%H:%M		standard format, it's unlikely to change it
+#		pattern			%Y%m%d_%H%M%S	sometimes the file doesn't have exif-info, but has the datetime information in the filename
+# ==============================================================================================================================================================
+# level	tagname	compulsory	number		description
+# ==============================================================================================================================================================
+# 3	subject	yes		1 or more	within the subject to you can differentiate files by timing. In a certain timeframe you can set another description
+#						for the file
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 		attribute	default		description
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+#		title				the description for a file
+#		overwrite-title	no		you can force to use the title for the description instead of retrieving it from the exif-info
+#		datetime-start	no		the datetime of a file should be more or equal to this value (can be dd-mm-yyyy or dd-mm-yyyy hh:mm:ss)
+#		datetime-end	no		the datetime of a file should be less than this value (can be dd-mm-yyyy or dd-mm-yyyy hh:mm:ss)
+#		timeshift	no		in case you set the time wrong you can shift the time in hh:mm:ss
+# ==============================================================================================================================================================
+# level	tagname	compulsory	number		description
+# ==============================================================================================================================================================
+# 4	exif	no		0 or more	if you want to write predefined information back into the exif-information of a file (makes the renaming slower)
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 		attribute	default		description
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+#		title				exif tagname unless alias is used
+#		alias-title			instead of exif tagname you can use the alias as set in the top of the config-file
+#		type				in case of a datetime field set it to datetime
+#		content				between tage, the value of the tagname with which the exif-info will be set
 #
-#
-# de inhoud van het bestand start.xml ziet er als volgt uit:
-#
-# - config:	verplicht	1		alle tags binnen de hoofdtag <config>  ... </config>, geen additionele attributen
-# - alias:			0 of meer	er kunnen meerdere alias-tags worden aangemaakt
-#		- titel:	verplicht		naam van de exif-tag
-#		- default:				de standaardwaarde indien exif onder ondewerp niet voorkomt of niet is gevuld met een waarde
-#		- type:					als deze datum is dan wordt de datum met deze waarde opgeteld of afgetrokken
-#		- content:	verplicht		de alias zelf, deze mag vaker voorkomen
-# - convert:   verplicht	1 of meer	per zoekopdracht
-# 		- filter:    	verplicht		hierin staat de zoekopdracht welke bestanden je wilt hernoemen, bv *.jpg
-# 		- nummering: 			T	geeft aan hoe je de bestanden na de datum notatie genummerd wilt hebben, 
-#              						bijvoorbeeld: 20100309-001
-#              	- posities: 			3	in dat geval geef je het startnummer op, in dit geval 1 en attribuut "posities" 3, betekent het nummer 
-#                          				uitvullen tot 3 cijfers, voordat er genummerd wordt, worden alle bestanden alfabetisch gesorteerd in 
-#                          				oplopende volgorde indien je geen nummer, maar het tijdstip wilt in uren, minuten en seconden, dan geef
-#                          				je in plaats van een cijfer de waarde T op. In plaats van 20100309-001 staat er dan 20100309-120501. 
-#              	- sub:      			a	Het kan zijn dat er binnen één seconde meer dan één foto is genomen, dan komt er bij de volgende foto 
-#                          				een a te staan achter de nummering, bijvoorbeeld: 20100309-001a of 20100309-120501a, de daaropvolgende
-#                          				foto wordt b, etc. Met het attribuut "sub" kun je de startwaarde hiervan wijzigen
-#		- voorloop						In plaats van een datum kan ook gekozen worden voor een vaste voorloopstring
-# 		- datum:     			DateTimeOriginal	Als dit attribuut er niet is, dan wordt geprobeerd om de DateTimeOriginal waarde 
-#									van de exif informatie in het bestand op te halen. Als dat niet lukt, dan wordt de waarde
-#									leeg gelaten. Als je toch een waarde wilt, dan vul je een standaardwaarde in.
-#              	- exif-datum:			DateTimeOriginal	dit attribuut geeft aan welke exif-waarde je wilt ophalen. Standaard is dat DateTimeOriginal, 
-#									maar dat mag ook een andere waarde zijn
-#              	- exif-datumformaat:		%Y:%m:%d %H:%M:%S	mocht het formaat binnen de exif of de DateTime afwijken van %Y:%m:%d %H:%M:%S, dan kun je 
-#									deze in  dit attribuut aanpassen
-#		- exif-timezone:		TimeZone		dit attribuut kan ingesteld worden als een timezone wordt gebruikt om de interne tijd te corrigeren
-#              	- patroon:     			%Y%m%d%H%M%S		mocht er geen exif-informatie zijn, dan kan de bestandsnaam gebruikt worden om daaruit 
-#									de datum en tijdstip te extraheren, bijvoorbeeld %Y%m%d%H%M%S, dit patroon komt overeen 
-#									met 20100309120501.
-#                             						staat er ook geen tijdstip in de bestandsnaam, dan kan nog geprobeerd worden om de 
-#									aanmaakdatum (CreateDateTime), de wijzig datum (ModifyDateTime) of de open datum
-#									(AccessDateTime) te gebruiken. Deze 3 waardes kun je dan zetten in het attribuut "patroon"
-#              	- overschrijf: 			nee			tenslotte kun je forceren om de waarde in de attribuut datum te gebruiken door dit 
-#                             						attribuut op ja te zetten, in dit geval wordt nog steeds de teller gebruikt om door te
-#									tellen en/of de sub-teller om door te nummeren. Er wordt namelijk voorkomen om een bestand
-#									te hernoemen naar een reeds bestaand bestand
-# - onderwerp:	verplicht	1 of meer	Dit is vooral handig als je op basis van datum en tijdstip bestanden een juist onderwerpsnaam wilt geven.
-#              	- exif-titel: 						het is mogelijk om het onderwerp uit de exif-informatie te halen. Hier geef je aan welke
-#									exif-waarde je daarvoor wilt gebruiken. Mocht deze waarde niet gevuld zijn, dan wordt de 
-#									waarde het attribuut titel gebruikt
-#              	- overschrijf-titel: 		nee			mocht je altijd de waarde van het attribuut titel willen gebruiken, dan geef je dit attribuut 
-#									de waarde ja
-#              	- tijd-start:  						per onderwerp regel kun je aangeven wat het start tijdstip is en het eindtijdstip, dit geef 
-#									je aan in het formaat yyyy-mm-dd hh:MM:ss, de uren, minuten en seconden kun je weglaten.
-#                             						de datum die hiervoor gebruikt wordt, heb je hiervoor bepaald en is de datum , die uiteindelijk 
-#                             						gebruik wordt om het bestand te hernoemen.
-#              	- tijd-einde:  						werkt hetzelfde als tijdstart, maar geeft het eindtijdstip aan. Je kunt alleen een tijdstart 
-#									opgeven zonder tijdeinde en omgekeerd.
-#		- datumshift:						hiermee kun je de datum corrigeren in uren, minuten en seconden voor- of achteruit
-#		- titel:						de naam van het onderwerp indien deze niet uit de exif-informatie komt
-# - exif:	niet verplicht	0 of meer	per onderwerp kunnen meerdere tags exif voorkomen. De exif-informatie wordt weggeschreven in het bestand
-#		- titel:	verplicht				exif-waarde, tenzij alias-titel is gevuld, dat kan van het type EXIF zijn, of XMP of IPTC
-#		- alias-titel:	verplicht				indien titel niet gevuld, dan is deze waarde verplicht
-#									de waarde wordt gezocht in de aliassen zoals in de alias-tags is gedefinieerd, er kunnen 
-#									meerder aliassen met dezelfde naam voorkomen, elke exif-tag wordt dan voorzien van de content 
-#									van exif
-#		- type:							dit hoeft alleen gebruikt en gevuld te worden, indien de exif-waarde een datumveld is, hiermee
-#									kan een datum en tijdstip in uren, minuten en seconden nauwkeurig worden gecorrigeerd. Dit 
-#									attribuut is niet nodig indien de alias-titel gebruikt wordt en het type onder de alias al is 
-#									gevuld
-#		- content:	verplicht				de waarde van de exif-tag in het bestand
-#
-# Mocht er iets fout gaan, dan wordt dit weggeschreven in het bestand fouten.txt in dezelfde map als de bestanden.
-# Er wordt ook bijgehouden of alle bestanden zoals je die in de zoekopdracht hebt meegegeven wel hernoemd zijn. Als er een bestand
-# niet hernoemd is, dan wordt dit in het foutenbestand opgenomen.
-# Het kan ook zijn, dat de exif-waarde niet is gevonden, dan wordt geprobeerd om in het foutenbestand alle mogelijk exif-labels en
-# waardes weer te geven.
+# In case of an error the information will be written in the file errors.txt in the same folder as the files
 #
 # ------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -188,7 +184,7 @@ if ($debug eq true) {
 	if ($clearfile eq false) {
 		printf("$format", "Clean up errors.txt", "no");
 	} else {
-		printf("$format", "Clean up errors.txt", "ja");
+		printf("$format", "Clean up errors.txt", "yes");
 	}
 	if ($norename eq false) {
 		printf("$format", "Rename", "yes");
@@ -272,12 +268,15 @@ foreach my $convert (@{$data->{convert}}) {
 			$renamefileobject->set_exiftags($alias);
 			$renamefileobject->settimeshift($subjectobject->timeshift(), $subjectobject->timeshift_sign());
 			if ($subjectobject->is_file_within_dateperiod($renamefileobject->corrected_datetime())) {
+				$renamefileobject->setrename($norename eq false);
 				$renamefileobject->write_exiftags($alias);
 				if ($convertobject->iscounter()) {
 					$numbering = $count;
 				}
-				$renamefileobject->setrename($norename eq false);
 				$renamefileobject->rename($subjectobject->title($renamefileobject->title()), $numbering, $convertobject->subchar());
+				if ($debug eq true) {
+					print $renamefileobject->print();
+				}
 			}
 			
 			$count++;

@@ -130,10 +130,11 @@ sub getfiles {
 	my @files = ();
 	if (defined $self->filter()) {
 		$self->setdebug($self->filter(), "getfiles:filter", $self->folder() . $self->filter());
-		@files = glob("\"" . $self->folder() . $self->filter() . "\"");
-#		@files = glob($self->folder() . $self->filter());
-#		my @files = glob("\"" . $filter. "\"");
-#		my @files = glob($self->filter());
+		if ($self->folder_contains_spaces()) {
+			@files = glob("\"" . $self->folder() . $self->filter() . "\"");
+		} else {
+			@files = glob($self->folder() . $self->filter());
+		}
 		$self->setdebug($self->filter(), "getfiles:filter", "number of files: " . scalar(@files));
 		foreach my $file (sort @files) {
 			$self->setdebug($file, "getfiles", "filter");
@@ -158,6 +159,15 @@ sub folder {
 		}
 	}
 	return $folder;
+}
+
+sub folder_contains_spaces {
+	my $self = shift;
+	my $contains = false;
+	if ($self->folder() =~ /\s/) {
+		$contains = true;
+	}
+	return $contains;
 }
 
 sub numbering {
