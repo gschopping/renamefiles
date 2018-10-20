@@ -1,4 +1,4 @@
-# renamefiles
+# RenameFiles
 This Perl script is created in order to rename a bundle of files (can be phot, video, audio) in an approopriate format:
  		20100309-120501 Description.jpg
  
@@ -14,65 +14,60 @@ The configuration is made with an xml-file: start.xml whcih you can place in the
 All files should be in one folder
 
 
-## The content of the start.xml file should look like:
-level	tagname	compulsory	number		description
-1	config	yes		1		all tags should be enclosed within the maintag <config> ... </config>, no additional attributes
-2	alias	no		0 or more	an alias is an easy way to set a set of exif-tags at once, and it's easier to remember, since you put all aliases
-					one time
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-		attribute	default	description
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-	title				name of the exif-tag (groupname:tagname)
-	default				if the alias is not set at subject-level, the default value is used
-	type				only necessary if it is of type datetime, in that case the value in this tag is taken as relative to the current
-					date and time
-	content				the value between the tagnames, the alias itself, this can be any name as you wish, and can be used further on
-					you can als use the same alias for multiple exif-tags
-==============================================================================================================================================================
-level	tagname	compulsory	number		description
-==============================================================================================================================================================
-2	convert	yes		1 or more	you set this tag for each search, a search is done like you do dir, eg *.jpg to find all files ending on .jpg
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-		attribute		default		description
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-	filter			*.JPG		the search for files
-	numbering		T		a number:	this is the starting number for the file, when you want a sequence of numbers in stead of a time
-						T		instead of a number you take the time of the file
-	positions		3		if not set, it pads the number with zeros up to 3 digits
-	subchar			a		default is "a", in case two file will be renamed to the same name, it adds "a" after the number ot time in order
-						to avoid overwriting of files. You can set to any character you want
-	prefix					instead of datetime you can use a fixed prefix
-	overwrite_prefix 	no		Force to use prefix instead of datetime, even if it can be found in the exif-information
-	exif-title		Title		name of the tag where to find the title for the description of the file
-	exif-datetime		DateTimeOriginal name of the tag where to find the datetime of the file
-	exif-datetimeformat	%Y:%m:%d %H:%M:%S the is the standard format, it's very unlikely to change it
-	exif-timezone		TimeZone	name of the tag where to find the timezone (if any) in the file
-	exif-timezoneformat	%H:%M		standard format, it's unlikely to change it
-	pattern			%Y%m%d_%H%M%S	sometimes the file doesn't have exif-info, but has the datetime information in the filename
-==============================================================================================================================================================
-level	tagname	compulsory	number		description
-==============================================================================================================================================================
-3	subject	yes		1 or more	within the subject to you can differentiate files by timing. In a certain timeframe you can set another description
-					for the file
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-		attribute	default		description
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-	title				the description for a file
-	overwrite-title	no		you can force to use the title for the description instead of retrieving it from the exif-info
-	datetime-start	no		the datetime of a file should be more or equal to this value (can be dd-mm-yyyy or dd-mm-yyyy hh:mm:ss)
-	datetime-end	no		the datetime of a file should be less than this value (can be dd-mm-yyyy or dd-mm-yyyy hh:mm:ss)
-	timeshift	no		in case you set the time wrong you can shift the time in hh:mm:ss
-==============================================================================================================================================================
-level	tagname	compulsory	number		description
-==============================================================================================================================================================
-4	exif	no		0 or more	if you want to write predefined information back into the exif-information of a file (makes the renaming slower)
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-		attribute	default		description
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-	title				exif tagname unless alias is used
-	alias-title			instead of exif tagname you can use the alias as set in the top of the config-file
-	type				in case of a datetime field set it to datetime
-	content				between tage, the value of the tagname with which the exif-info will be set
+## Content of start.xml
+|level | tagname | number    |	description                                                                                                                        |
+|:----:| ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+|1	   | config  | 1         |  all tags should be enclosed within the maintag <config> ... </config>, no additional attributes                                    |
+|2	   | alias	 | 0 or more |	an alias is an easy way to set a set of exif-tags at once, and it's easier to remember, since you put all aliases	one time       |
+
+|alias | attribute | default | description                                                                                                                         |
+| ---- | --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+|      | title     |         | name of the exif-tag (groupname:tagname)                                                                                            |
+|      | default   |         | if the alias is not set at subject-level, the default value is used                                                                 |
+|      | type      |         | only necessary if it is of type *datetime*, in that case the value in this tag is taken as relative to the current date and time      |
+|      | content   |         | the value between the tagnames, the alias itself, this can be any name as you wish, and can be used further on you can als use the same alias for multiple exif-tags |
+
+|level | tagname   | number  | description                                                                                                        |
+|:----:| --------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| 2    | convert   |1 or more| you set this tag for each search, a search is done like you do dir, eg *.jpg to find all files ending on .jpg      |
+
+| convert |	attribute | default | description
+| ------- | --------- |:-------:| ---------------------------------------------------------------------------------------------------------------------------------------- |
+|         | filter    |	*.JPG   | the search for files                                                                                                                     |
+|         |	numbering | T		| a number:	this is the starting number for the file, when you want a sequence of numbers. Any non number it takes the time of the file    |
+|         | positions | 3       | it pads the number with zeros up to the choosen number of digits                                                                         |
+|         |	subchar   | a       | in case two file will be renamed to the same name, it adds subchar after the number ot time in order to avoid overwriting of files. You can set to any character you want |
+|         |	prefix    |         | instead of datetime you can use a fixed prefix                                                                                           |
+|         |	overwrite_prefix |no| force to use prefix instead of datetime, even if it can be found in the exif-information                                                 |
+|         |	exif-title|	Title   | name of the tag where to find the title for the description of the file                                                                  |
+|         |	exif-datetime|DateTimeOriginal| name of the tag where to find the datetime of the file                                                                         |
+|         |	exif-datetimeformat|%Y:%m:%d %H:%M:%S| the is the standard format, it's very unlikely to change it                                                             |
+|         |	exif-timezone|TimeZone|	name of the tag where to find the timezone (if any) in the file                                                                        |
+|         |	exif-timezoneformat|%H:%M| standard format, it's unlikely to change it                                                                                         |
+|         |	pattern   |	%Y%m%d_%H%M%S |	sometimes the file doesn't have exif-info, but has the datetime information in the filename                                        |
+
+|level | tagname | number    | description
+|:----:| ------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3	   | subject | 1 or more | within the subject to you can differentiate files by timing. In a certain timeframe you can set another description for the file             |
+
+| subject |	attribute |	default | description
+| ------- | --------- |:-------:| ------------------------------------------------------------------------------------------------------------------------------------------ |
+|         |	title     |         | the description for a file                                                                                                                 |
+|         |	overwrite-title| no | you can force to use the title for the description instead of retrieving it from the exif-info                                             |
+|         |	datetime-start|     | the datetime of a file should be more or equal to this value (can be `dd-mm-yyyy` or `dd-mm-yyyy hh:mm:ss`)                                    |
+|         |	datetime-end |      | the datetime of a file should be less than this value (can be `dd-mm-yyyy` or `dd-mm-yyyy hh:mm:ss`)                                           |
+|         |	timeshift |         | in case you set the time wrong you can shift the time in `hh:mm:ss`                                                                          |
+
+|level | tagname | number       | description
+|:----:| ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 4    | exif    | 0 or more    | if you want to write predefined information back into the exif-information of a file (makes the renaming slower)                          |
+
+| exif | attribute | default    | description
+| ---- | --------- |:----------:| ----------------------------------------------------------------------------------------------------------------------------------------- |
+|      | title     |            | exif tagname unless alias is used                                                                                                         |
+|      | alias-title |          | instead of exif tagname you can use the alias as set in the top of the config-file                                                        |
+|      | type      |            | in case of a datetime field set it to *datetime*                                                                                            |
+|      | content   |            | between tage, the value of the tagname with which the exif-info will be set                                                               |
 
 In case of an error the information will be written in the file errors.txt in the same folder as the files
 

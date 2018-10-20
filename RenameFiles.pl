@@ -195,7 +195,7 @@ if ($debug eq true) {
 	
 
 
-# maak foutenbestand
+# create errofile
 my $errorfile;
 if ($clearfile eq false) {
 	open($errorfile, '>>', $foldererror . 'errors.txt') or die printf("Can't open %s\n", $foldererror . "errors.txt");
@@ -211,12 +211,6 @@ my $xml = XML::Simple->new;
 # read XML file
 my $data = $xml->XMLin($folderxml . 'start.xml', ForceArray => ['convert', 'alias', 'subject']) or die $errorfile;
 
-# lees alle waardes voor aliassen in. Deze array vormt de basis voor het vullen van de exif-informatie in het bestand
-# titel:	titel van de exif-tag
-# default:	indien geen waarde opgegeven bij de exif van het onderwerp, dan wordt de default waarde ingevuld
-# alias:	de alias die verderop bij de exif van het onderwerp gebruikt kan worden (aliastitel) in plaats van de exif-tag
-# value:	deze waarde is in beginsel leeg, maar wordt later ingevuld zoals opgegeven in exif onder onderwerp
-# type:		als het type datum is dan wordt een datumbewerking uitgevoerd (optellen of aftrekken van uren, minuten, seconden
 my $alias;
 foreach my $aliastag (@{$data->{alias}}) {
 	$alias = RenameFiles::Aliases->new("title" => $aliastag->{title}, "default" => $aliastag->{default}, "alias" => $aliastag->{content}, "type" => $aliastag->{type});
