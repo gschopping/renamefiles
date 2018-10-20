@@ -10,7 +10,7 @@ However other variations are possible as well:
 Where possible it retrieves the information within the files with the help of exiftool, but it can also retrieve the date and time
 from the pattern of the filename.
 
-The configuration is made with an xml-file: start.xml whcih you can place in the same directory as the files
+The configuration is made with an xml-file: **start.xml** whcih you can place in the same directory as the files
 All files should be in one folder
 
 
@@ -27,6 +27,7 @@ All files should be in one folder
 |      | type      |         | only necessary if it is of type *datetime*, in that case the value in this tag is taken as relative to the current date and time      |
 |      | content   |         | the value between the tagnames, the alias itself, this can be any name as you wish, and can be used further on you can als use the same alias for multiple exif-tags |
 
+### convert
 |level | tagname   | number  | description                                                                                                        |
 |:----:| --------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
 | 2    | convert   |1 or more| you set this tag for each search, a search is done like you do dir, eg *.jpg to find all files ending on .jpg      |
@@ -46,6 +47,7 @@ All files should be in one folder
 |         |	exif-timezoneformat|%H:%M| standard format, it's unlikely to change it                                                                                         |
 |         |	pattern   |	%Y%m%d_%H%M%S |	sometimes the file doesn't have exif-info, but has the datetime information in the filename                                        |
 
+### subject
 |level | tagname | number    | description
 |:----:| ------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | 3	   | subject | 1 or more | within the subject to you can differentiate files by timing. In a certain timeframe you can set another description for the file             |
@@ -58,6 +60,7 @@ All files should be in one folder
 |         |	datetime-end |      | the datetime of a file should be less than this value (can be `dd-mm-yyyy` or `dd-mm-yyyy hh:mm:ss`)                                           |
 |         |	timeshift |         | in case you set the time wrong you can shift the time in `hh:mm:ss`                                                                          |
 
+### exif
 |level | tagname | number       | description
 |:----:| ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | 4    | exif    | 0 or more    | if you want to write predefined information back into the exif-information of a file (makes the renaming slower)                          |
