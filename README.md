@@ -17,7 +17,7 @@ All files should be in one folder
 ## Content of start.xml
 |level | tagname | number    |	description                                                                                                                        |
 |:----:| ------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-|1	   | config  | 1         |  all tags should be enclosed within the maintag <config> ... </config>, no additional attributes                                    |
+|1	   | config  | 1         |  all tags should be enclosed within the maintag `<config> ... </config>`, no additional attributes                                    |
 |2	   | alias	 | 0 or more |	an alias is an easy way to set a set of exif-tags at once, and it's easier to remember, since you put all aliases	one time       |
 
 |alias | attribute | default | description                                                                                                                         |
