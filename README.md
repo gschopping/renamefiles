@@ -1,5 +1,5 @@
 # RenameFiles
-This Perl script is created in order to rename a bundle of files (can be phot, video, audio) in an approopriate format:
+This Perl script **RenameFiles.pl** is created in order to rename a bundle of files (can be photo, video, audio) in an approopriate format:
 >       20100309-120501 Description.jpg
  
 However other variations are possible as well:
