@@ -110,9 +110,9 @@ In case of an error the information will be written in the file errors.txt in th
 	<alias title="XMP:Rights" default="Copyright (2018)">Copyright</alias>
 	<alias title="IPTC:SpecialInstructions">Speciale instructies</alias>
 	<alias title="XMP:Instructions">Speciale instructies</alias>
-	<alias title="EXIF:DateTimeOriginal" type="datum">Datum</alias>
-	<alias title="EXIF:CreateDate" type="datum">Datum</alias>
-	<alias title="EXIF:ModifyDate" type="datum">Datum</alias>
+	<alias title="EXIF:DateTimeOriginal" type="datetime">Datum</alias>
+	<alias title="EXIF:CreateDate" type="datetime">Datum</alias>
+	<alias title="EXIF:ModifyDate" type="datetime">Datum</alias>
 	<convert filter="*.ARW" numbering="T" subchar="a" exif-datetime="CreateDate" exif-title="Title">
 		<subject overwrite-title="yes" timeshift="-01:00:00" datetime-start="2017-02-11 17:00:00" datetime-end="2017-02-11 18:00:00" title="Dresden">
 			<exif alias-title="Landcode">DEU</exif>
